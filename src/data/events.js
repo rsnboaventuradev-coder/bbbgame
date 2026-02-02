@@ -16,7 +16,7 @@ export const EVENTS = [
                         setImmunes(prev => [...prev, 'player']);
                         addLog("☎ BIG FONE: Você está IMUNE!", 'success');
                     } else if (outcome === 'wall') {
-                        setNominees(prev => [...prev, 'player']);
+                        setNominees(prev => [...prev, { id: 'player', reason: 'big_phone' }]);
                         addLog("☎ BIG FONE: Você está no PAREDÃO!", 'bad');
                     } else {
                         addLog("☎ BIG FONE: Você ganhou o Poder do Voto Duplo (WIP)!", 'info');
@@ -732,6 +732,75 @@ export const EVENTS = [
                 effect: (player, setPlayer, npcs, setNpcs, addLog) => {
                     addLog("Você quebrou a quarta parede. Boninho não gostou (-50 Estalecas).", "alert");
                     setPlayer(p => ({ ...p, money: Math.max(0, p.money - 50) }));
+                }
+            }
+        ]
+    },
+    // --- SPECIAL SYSTEM EVENTS ---
+    {
+        id: 'party',
+        text: 'HOJE TEM FESTA! O figurino chegou e a música já começou. A noite é uma criança (ou não).',
+        trigger: 'system',
+        weight: 0,
+        choices: [
+            {
+                text: "Beber todas e curtir!",
+                sentiment: 'positive',
+                effect: (player, setPlayer, npcs, setNpcs, addLog) => {
+                    addLog("Você se jogou na festa! A galera curtiu sua vibe.", "success");
+                    setPlayer(p => ({ ...p, stress: 0, intoxication: 80 })); // Reset stress, high intoxication
+                    setNpcs(prev => prev.map(n => ({
+                        ...n,
+                        affinity: Math.min(100, n.affinity + 5) // Everyone likes a fun drunk (mostly)
+                    })));
+                }
+            },
+            {
+                text: "Focar em estratégia (Espionar)",
+                sentiment: 'neutral',
+                effect: (player, setPlayer, npcs, setNpcs, addLog) => {
+                    addLog("Você ficou nos cantos ouvindo conversas. Descobriu alguns votos.", "info");
+                    setPlayer(p => ({ ...p, strategy: p.strategy + 5 }));
+                    // Chance to lower affinity if spotted? For now simple.
+                }
+            },
+            {
+                text: "Dançar até o chão!",
+                sentiment: 'drama',
+                effect: (player, setPlayer, npcs, setNpcs, addLog) => {
+                    addLog("Você entregou TUDO na pista de dança! O Brasil tá vendo.", "success");
+                    setPlayer(p => ({
+                        ...p,
+                        popularity: Math.min(100, p.popularity + 5),
+                        energy: Math.max(0, p.energy - 30)
+                    }));
+                }
+            }
+        ]
+    },
+    {
+        id: 'punishment',
+        text: 'ALERTA DE PUNIÇÃO COLETIVA! A casa está imunda e a produção não perdoou.',
+        trigger: 'system',
+        weight: 0,
+        choices: [
+            {
+                text: "Aceitar e pedir desculpas",
+                sentiment: 'neutral',
+                effect: (player, setPlayer, npcs, setNpcs, addLog) => {
+                    addLog("Você pediu desculpas pelo grupo. Menos mal.", "info");
+                    setPlayer(p => ({ ...p, money: Math.max(0, p.money - 100) }));
+                }
+            },
+            {
+                text: "Culpar os porcos da Xepa",
+                sentiment: 'negative',
+                effect: (player, setPlayer, npcs, setNpcs, addLog) => {
+                    addLog("Você causou uma briga generalizada sobre a louça!", "bad");
+                    setNpcs(prev => prev.map(n => ({
+                        ...n,
+                        affinity: Math.max(0, n.affinity - 10)
+                    })));
                 }
             }
         ]

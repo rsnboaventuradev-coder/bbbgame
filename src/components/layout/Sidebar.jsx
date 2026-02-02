@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useGame } from '../../context/GameContext';
-import { Heart, Battery, Activity, Sparkles, Shield, Crown, Brain, Trophy, Smile, ShoppingCart, Droplets, Utensils, Handshake } from 'lucide-react';
+import { Heart, Battery, Activity, Sparkles, Shield, Crown, Brain, Trophy, Smile, ShoppingCart, Droplets, Utensils, Handshake, Save } from 'lucide-react';
 import ShopModal from '../game/ShopModal';
 import AllianceModal from '../game/AllianceModal';
 
 const Sidebar = () => {
-    const { player, houseCleanliness } = useGame();
+    const { player, houseCleanliness, saveGame } = useGame();
     const [isShopOpen, setIsShopOpen] = useState(false);
     const [isAllianceOpen, setIsAllianceOpen] = useState(false);
 
@@ -98,6 +98,13 @@ const Sidebar = () => {
                         </div>
                     </div>
                 )}
+
+                <button
+                    onClick={saveGame}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 mb-4"
+                >
+                    <Save size={18} /> Salvar Jogo
+                </button>
 
                 <button
                     onClick={() => setIsShopOpen(true)}

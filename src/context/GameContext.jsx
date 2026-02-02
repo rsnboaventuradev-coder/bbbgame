@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { NAMES, JOBS, TRAITS, ACTION_COSTS, GAME_STATES, STATES, MAX_DAILY_ACTIONS, TIMES_OF_DAY, NPC_BEHAVIOR, PARTY_MODE, LIMITS, NPC_GENERATION, RUMOR_SYSTEM } from '../utils/constants';
+import { NAMES, JOBS, TRAITS, ACTION_COSTS, GAME_STATES, STATES, MAX_DAILY_ACTIONS, TIMES_OF_DAY, NPC_BEHAVIOR, PARTY_MODE, LIMITS, NPC_GENERATION, RUMOR_SYSTEM, EVENT_CHANCES } from '../utils/constants';
 import { EVENTS } from '../data/events';
 
 const GameContext = createContext();
@@ -11,7 +11,7 @@ export const GameProvider = ({ children }) => {
 
     // --- Core State ---
     const [gameState, setGameState] = useState(GAME_STATES.MENU);
-    console.log("GameContext Initializing..."); // Debug/Force Update
+
     const [day, setDay] = useState(1);
     const [week, setWeek] = useState(1);
     const [player, setPlayer] = useState({
@@ -371,7 +371,7 @@ export const GameProvider = ({ children }) => {
 
         const randomComment = pool[Math.floor(Math.random() * pool.length)];
         const randomUser = `@user${Math.floor(Math.random() * 9000) + 1000}`;
-        setFeed(prev => [{ user: randomUser, text: `${randomComment} ${context}`, id: Date.now() }, ...prev].slice(0, LIMITS.MAX_FEED));
+        setFeed(prev => [{ user: randomUser, text: `${randomComment} ${context}`, id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }, ...prev].slice(0, LIMITS.MAX_FEED));
     };
 
     const generateNPCs = (count) => {
@@ -1016,7 +1016,7 @@ export const GameProvider = ({ children }) => {
         }
     };
 
-    const saveToStorage = () => {
+    const saveGame = () => {
         // We cannot save functions (event effects), so we only save the Event ID
         const serializableActiveEvent = activeEvent ? { id: activeEvent.id } : null;
 
@@ -1031,8 +1031,10 @@ export const GameProvider = ({ children }) => {
         };
         try {
             localStorage.setItem('bbb_save_v1', JSON.stringify(gameStateData));
+            addLog("Progresso salvo com sucesso!", "system");
         } catch (e) {
             console.error("Save failed (quota or circular):", e);
+            addLog("Erro ao salvar o jogo. Espaço cheio?", "error");
         }
     };
 
@@ -1054,7 +1056,7 @@ export const GameProvider = ({ children }) => {
                 setGameState(parsed.gameState);
                 setHouseCleanliness(parsed.houseCleanliness || 100);
                 setActionsLeft(parsed.actionsLeft !== undefined ? parsed.actionsLeft : MAX_DAILY_ACTIONS);
-                setNominees(parsed.nominees || []);
+                setNominees((parsed.nominees || []).map(n => typeof n === 'object' ? n : { id: n, reason: 'legacy' }));
                 setImmunes(parsed.immunes || []);
                 setMonsters(parsed.monsters || []);
                 setAllianceTarget(parsed.allianceTarget || null);
@@ -1114,7 +1116,7 @@ export const GameProvider = ({ children }) => {
     // Auto-save on important state changes
     useEffect(() => {
         if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.VOTING_HOUSE || gameState === GAME_STATES.MINIGAME) {
-            saveToStorage();
+            saveGame();
         }
     }, [day, gameState, actionsLeft, player.money, npcs.length, bigFone]); // Verified triggers
 
@@ -1146,10 +1148,10 @@ export const GameProvider = ({ children }) => {
             setImmunes(prev => [...prev, 'player']);
             addLog("☎ BIG FONE: Você está IMUNE nesta semana!", 'success');
         } else if (action === 'wall') {
-            setNominees(prev => [...prev, 'player']);
+            setNominees(prev => [...prev, { id: 'player', reason: 'big_phone' }]);
             addLog("☎ BIG FONE: Você está no PAREDÃO imediatamente!", 'alert');
         } else if (action === 'nominate' && targetId) {
-            setNominees(prev => [...prev, targetId]);
+            setNominees(prev => [...prev, { id: targetId, reason: 'big_phone' }]);
             const targetName = npcs.find(n => n.id === targetId)?.name;
             addLog(`☎ BIG FONE: Você indicou ${targetName} ao Paredão!`, 'drama');
             setPlayer(p => ({ ...p, strategy: p.strategy + 10 }));
@@ -1468,7 +1470,8 @@ export const GameProvider = ({ children }) => {
 
     const submitLeaderNomination = (targetId) => {
         const targetName = npcs.find(n => n.id === targetId)?.name || 'Alguém';
-        setNominees(prev => [...prev, targetId]);
+        // [REF_NOMINEES] Push object with reason
+        setNominees(prev => [...prev, { id: targetId, reason: 'leader', votes: 0 }]);
         addLog(`LÍDER: Você indicou ${targetName} ao Paredão!`, 'drama');
         // IMPORTANT: Move to House Vote now
         setGameState(GAME_STATES.VOTING_CONFESSIONAL);
@@ -1487,6 +1490,11 @@ export const GameProvider = ({ children }) => {
         }
         if (immunes.includes(targetId)) {
             addLog("Este participante está imune!", 'alert');
+            return;
+        }
+        // Check if already nominated (Leader's choice cannot be voted)
+        if (nominees.some(n => n.id === targetId)) {
+            addLog("Este participante já está no Paredão!", 'alert');
             return;
         }
 
@@ -1513,39 +1521,46 @@ export const GameProvider = ({ children }) => {
 
             let target;
 
-            if (betrayal && betrayal.targetId === 'player') {
+            // Should not vote for Leader, Immunes, OR Existing Nominees
+            const validTargets = npcs.filter(n =>
+                n.id !== voter.id &&
+                n.status === 'active' &&
+                n.id !== leaderId &&
+                !immunes.includes(n.id) &&
+                !nominees.some(nom => nom.id === n.id) // Cannot vote for existing nominees
+            );
+
+            // Add Player to valid targets if applicable
+            if (player.state !== 'eliminated' && !immunes.includes('player') && leaderId !== 'player' && !nominees.some(n => n.id === 'player')) {
+                validTargets.push({ id: 'player', ...player }); // Mock object
+            }
+
+            if (validTargets.length === 0) return; // No one to vote for?
+
+            if (betrayal && betrayal.targetId === 'player' && validTargets.some(t => t.id === 'player')) {
                 target = { id: 'player' }; // Vindictive vote
             } else if ((player.alliance || []).includes(voter.id) && allianceTarget && allianceTarget !== voter.id) {
                 // Alliance Check (Betrayal System)
                 const betrayalChance = Math.max(0, 100 - (voter.loyalty || 50));
                 const roll = Math.random() * 100;
 
-                if (roll > betrayalChance) {
+                if (roll > betrayalChance && validTargets.some(t => t.id === allianceTarget)) {
                     // Loyal! Follows order
                     target = { id: allianceTarget };
                     // addLog(`${voter.name} seguiu o voto da aliança em ${npcs.find(n => n.id === allianceTarget)?.name}.`, 'system');
                 } else {
                     // Betrayal! Vote normal (lowest affinity)
                     // addLog(`${voter.name} TRAIU a aliança e votou por conta própria!`, 'warning');
-                    target = npcs
-                        .filter(n => n.id !== voter.id && n.status === 'active' && n.id !== leaderId && !immunes.includes(n.id))
-                        .sort((a, b) => a.affinity - b.affinity)[0];
+                    target = validTargets.sort((a, b) => a.affinity - b.affinity)[0];
                 }
             } else {
                 // Standard Logic: Lowest Affinity
-                target = npcs
-                    .filter(n => n.id !== voter.id && n.status === 'active' && n.id !== leaderId && !immunes.includes(n.id))
-                    .sort((a, b) => a.affinity - b.affinity)[0];
+                target = validTargets.sort((a, b) => a.affinity - b.affinity)[0];
             }
 
-            // Fallback random if undefined (e.g. only 2 people left)
+            // Fallback random
             if (!target) {
-                const candidates = npcs.filter(n => n.id !== voter.id && n.status === 'active' && n.id !== leaderId && !immunes.includes(n.id));
-                if (candidates.length > 0) {
-                    target = candidates[Math.floor(Math.random() * candidates.length)];
-                } else { // Worst case: Vote for player if no one else
-                    target = { id: 'player' };
-                }
+                target = validTargets[Math.floor(Math.random() * validTargets.length)];
             }
 
             if (target) {
@@ -1554,15 +1569,20 @@ export const GameProvider = ({ children }) => {
             }
         });
 
-        // Determine Nominees (Top 3)
+        // Determine Nominees (Top 2 most voted)
         const sortedVotes = Object.entries(votes).sort((a, b) => b[1] - a[1]);
-        const votedNominees = sortedVotes.slice(0, 3).map(v => (v[0] === 'player' ? 'player' : parseInt(v[0])));
+        // Map to Nominee Object Structure
+        const houseNominees = sortedVotes.slice(0, 2).map(v => ({
+            id: (v[0] === 'player' ? 'player' : parseInt(v[0])),
+            reason: 'house',
+            votes: v[1]
+        }));
 
         // Merge with existing nominees (Big Phone etc)
-        const finalNominees = [...new Set([...nominees, ...votedNominees])];
+        // Since we filtered valid targets, no duplicates should happen, but spread safely
+        setNominees(prev => [...prev, ...houseNominees]);
 
-        setNominees(finalNominees);
-        addLog("Paredão Formado!", 'alert');
+        addLog(`Paredão Formado com ${houseNominees.length} indicados pela casa!`, 'alert');
 
         // Go to Elimination (simulated for now, usually takes a few days)
         setGameState(GAME_STATES.PLAYING); // Ends voting session
@@ -1572,8 +1592,11 @@ export const GameProvider = ({ children }) => {
         // Simple logic: Person with lowest Public Popularity leaves
         // If player is nominee, compare their popularity.
 
-        // Identify objects
-        const nomObjects = currentNominees.map(id => npcs.find(n => n.id === id) || { id: 'player', name: 'Você', publicPop: player.popularity });
+        // currentNominees is now array of objects {id, reason...}
+        const nomObjects = currentNominees.map(nom => {
+            if (nom.id === 'player') return { id: 'player', name: 'Você', publicPop: player.popularity };
+            return npcs.find(n => n.id === nom.id) || { id: nom.id, name: 'Desconhecido', publicPop: 0 };
+        });
 
         // Sort by Lowest Pop
         const eliminated = nomObjects.sort((a, b) => a.publicPop - b.publicPop)[0]; // Lowest pop leaves
@@ -1584,7 +1607,7 @@ export const GameProvider = ({ children }) => {
             setGameState(GAME_STATES.ELIMINATED);
         } else {
             // Check if player was a nominee and survived
-            if (currentNominees.includes('player')) {
+            if (currentNominees.some(n => n.id === 'player')) {
                 setPlayer(prev => ({ ...prev, paredoesCount: prev.paredoesCount + 1 }));
                 addLog("Você voltou do Paredão! O público te salvou.", 'system');
             }
@@ -1617,13 +1640,11 @@ export const GameProvider = ({ children }) => {
             houseCleanliness, setHouseCleanliness,
             minigameState, setMinigameState,
             addLog, addSocialPost, startGame, executeAction, nextDay, updateAffinity,
-            finishMinigame, submitVote, submitLeaderNomination, resolveLeaderPerk, // EXPORTED
+            finishMinigame, submitVote, submitLeaderNomination, resolveLeaderPerk, resolveAngelChoice, // EXPORTED
             isPartyMode, drinkAlcohol, // [NEW] Exports
             activeDialogue, setActiveDialogue, addInteraction,
             actionsLeft, setActionsLeft, // Export
-            checkSave, getHallOfFame, clearSave, buyItem, // Exported
-            inviteToAlliance, callAllianceMeeting, allianceTarget, // Alliance
-            checkSave, getHallOfFame, clearSave, buyItem, // Exported
+            saveGame, checkSave, getHallOfFame, clearSave, buyItem, // Exported
             inviteToAlliance, callAllianceMeeting, allianceTarget, // Alliance
             calculateChemistry, executeRomanceAction, // Romance
             bigFone, resolveBigFone, triggerBigFone, // Big Phone

@@ -20,7 +20,7 @@ import LeaderPanel from './components/game/LeaderPanel'; // [NEW]
 import { GAME_STATES } from './utils/constants';
 
 const GameContent = () => {
-  const { winner, gameState, activeEvent, resolveEvent, logs, feed, activeDialogue, setActiveDialogue, day, showTutorial, setShowTutorial, showLeaderPanel, setShowLeaderPanel } = useGame();
+  const { winner, gameState, activeEvent, resolveEvent, logs, feed, activeDialogue, setActiveDialogue, day, showTutorial, setShowTutorial, showLeaderPanel, setShowLeaderPanel, selectedTarget, setSelectedTarget } = useGame();
   const logsEndRef = React.useRef(null);
   // const [showTutorial, setShowTutorial] = React.useState(false); // Moved to context
 
@@ -99,7 +99,7 @@ const GameContent = () => {
       <div className="flex-1 flex flex-col h-full">
         {/* NPC Grid Area */}
         <div className="flex-1 overflow-y-auto custom-scrollbar pb-4 relative">
-          <NPCGrid />
+          <NPCGrid onSelect={setSelectedTarget} selectedId={selectedTarget} />
 
           {/* Logs Area */}
           <div className="mt-4 bg-black/30 p-4 rounded-xl border border-gray-800 h-48 overflow-y-auto custom-scrollbar">
