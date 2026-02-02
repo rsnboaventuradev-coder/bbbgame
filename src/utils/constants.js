@@ -178,6 +178,7 @@ export const TRAITS = [
     }
 ];
 
+
 export const ACTION_COSTS = {
     GYM: 25,
     CONFLICT: 25,
@@ -195,6 +196,92 @@ export const EVENT_CHANCES = {
     RANDOM_EVENT: 0.40, // 40% per action
     STRATEGY_LEAK: 0.40 // 40% during party
 };
+
+// ===== GAME BALANCING CONSTANTS =====
+// Centralized values for easy game balancing
+
+export const NPC_BEHAVIOR = {
+    // Autonomous action chances
+    AUTONOMOUS_ACTION_CHANCE: 0.3, // 30% chance of trait-specific action
+
+    // Affinity thresholds
+    LOW_AFFINITY_THRESHOLD: 30,
+    HIGH_AFFINITY_THRESHOLD: 40,
+
+    // Conflict modifiers
+    LOW_AFFINITY_CONFLICT_BONUS: 0.3,
+    PARTY_MODE_CONFLICT_BONUS: 0.2,
+    DEFAULT_CONFLICT_CHANCE: 0.1,
+
+    // Affinity changes
+    CONFLICT_AFFINITY_LOSS: 10,
+    SOCIAL_AFFINITY_GAIN: 5,
+    HELPFUL_TRAIT_AFFINITY_GAIN: 8,
+    FLIRT_AFFINITY_GAIN_ACTOR: 10,
+    FLIRT_AFFINITY_GAIN_TARGET: 5,
+    BETRAY_AFFINITY_LOSS: 30,
+
+    // Popularity changes
+    CRY_POPULARITY_GAIN: 5,
+    DRAMA_POPULARITY_GAIN: 10,
+    MEDIATE_POPULARITY_GAIN: 3,
+    PLANTA_POPULARITY_LOSS: 2,
+
+    // Default values
+    DEFAULT_RELATIONSHIP_VALUE: 50,
+    DEFAULT_POPULARITY: 50,
+
+    // Limits
+    MAX_AFFINITY: 100,
+    MIN_AFFINITY: 0,
+    MAX_POPULARITY: 100,
+    MIN_POPULARITY: 0,
+
+    // Romance
+    ROMANCE_THRESHOLD: 75
+};
+
+export const PARTY_MODE = {
+    // Party chaos thresholds
+    EXTRA_CHAOS_CHANCE: 0.6, // 40% chance of extra chaos (Math.random() > 0.6)
+    CRY_THRESHOLD: 0.8, // 20% chance (chaosRoll > 0.8)
+    DANCE_THRESHOLD: 0.2, // 20% chance (chaosRoll < 0.2)
+};
+
+export const LIMITS = {
+    // Array size limits (memory leak prevention)
+    MAX_HOUSE_LOG: 50,
+    MAX_LOGS: 50,
+    MAX_FEED: 10,
+    MAX_MEMORIES_PER_NPC: 10,
+    MAX_RUMORS_PER_NPC: 20,
+
+    // Game limits
+    MAX_ENERGY: 100,
+    MIN_ENERGY: 0,
+    MAX_STRESS: 100,
+    MIN_STRESS: 0,
+};
+
+export const NPC_GENERATION = {
+    MIN_AGE: 19,
+    MAX_AGE: 35,
+    INITIAL_AFFINITY: 20,
+    INITIAL_PUBLIC_POP_MIN: 40,
+    INITIAL_PUBLIC_POP_RANGE: 40, // 40-80
+    INITIAL_LOYALTY_MIN: 20,
+    INITIAL_LOYALTY_RANGE: 50, // 20-70
+    INITIAL_BEAUTY_MIN: 40,
+    INITIAL_BEAUTY_RANGE: 60, // 40-100
+};
+
+export const RUMOR_SYSTEM = {
+    MAX_RUMOR_AGE_DAYS: 2, // Only share rumors < 2 days old
+    GOSSIP_TRAIT_SHARE_BONUS: 30,
+    SHARE_CHANCE_DIVISOR: 200,
+    RUMOR_AFFINITY_PENALTY: 5, // Penalty when rumor is about player
+};
+
 
 export const GAME_STATES = {
     MENU: 'MENU',

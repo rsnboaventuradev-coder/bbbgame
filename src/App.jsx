@@ -16,10 +16,11 @@ import VotingConfessional from './components/game/VotingConfessional';
 import LeaderNominationPanel from './components/game/LeaderNominationPanel'; // [NEW]
 import EliminationScreen from './components/game/EliminationScreen';
 import BigPhoneModal from './components/game/BigPhoneModal'; // [NEW]
+import LeaderPanel from './components/game/LeaderPanel'; // [NEW]
 import { GAME_STATES } from './utils/constants';
 
 const GameContent = () => {
-  const { winner, gameState, activeEvent, resolveEvent, logs, feed, activeDialogue, setActiveDialogue, day, showTutorial, setShowTutorial } = useGame();
+  const { winner, gameState, activeEvent, resolveEvent, logs, feed, activeDialogue, setActiveDialogue, day, showTutorial, setShowTutorial, showLeaderPanel, setShowLeaderPanel } = useGame();
   const logsEndRef = React.useRef(null);
   // const [showTutorial, setShowTutorial] = React.useState(false); // Moved to context
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useGame } from '../../context/GameContext';
 import { Home, Dumbbell, BookOpen, MessageCircle, Zap, Heart, Ear, Moon, Megaphone, Wine, Crown } from 'lucide-react';
-import { ACTION_COSTS, MAX_DAILY_ACTIONS, TIMES_OF_DAY } from '../../utils/constants';
+import { ACTION_COSTS, MAX_DAILY_ACTIONS, TIMES_OF_DAY, NPC_BEHAVIOR } from '../../utils/constants';
 
 const ActionPanel = () => {
     const { player, selectedTarget, executeAction, nextDay, npcs, actionsLeft, isPartyMode, drinkAlcohol, activeEvent, leaderId, setShowLeaderPanel } = useGame();
@@ -60,7 +60,7 @@ const ActionPanel = () => {
                 <ActionButton action="read" icon={BookOpen} label="Ler/Estratégia" color="teal" cost={ACTION_COSTS.READ} />
                 <ActionButton action="socialize" icon={MessageCircle} label="Social" color="blue" cost={ACTION_COSTS.SOCIALIZE} reqTarget={true} />
                 <ActionButton action="conflict" icon={Zap} label="Treta" color="red" cost={ACTION_COSTS.CONFLICT} reqTarget={true} />
-                <ActionButton action="romance" icon={Heart} label="Romance" color="pink" cost={ACTION_COSTS.ROMANCE} reqTarget={true} minAffinity={75} />
+                <ActionButton action="romance" icon={Heart} label="Romance" color="pink" cost={ACTION_COSTS.ROMANCE} reqTarget={true} minAffinity={NPC_BEHAVIOR.ROMANCE_THRESHOLD} />
                 <ActionButton action="eavesdrop" icon={Ear} label="Espionar" color="purple" cost={ACTION_COSTS.EAVESDROP} />
                 <ActionButton action="spreadRumor" icon={Megaphone} label="Fofocar" color="yellow" cost={ACTION_COSTS.SPREAD_RUMOR} reqTarget={true} />
 

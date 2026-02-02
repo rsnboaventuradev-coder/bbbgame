@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { NAMES, JOBS, TRAITS, ACTION_COSTS, GAME_STATES, STATES, MAX_DAILY_ACTIONS, TIMES_OF_DAY } from '../utils/constants';
+import { NAMES, JOBS, TRAITS, ACTION_COSTS, GAME_STATES, STATES, MAX_DAILY_ACTIONS, TIMES_OF_DAY, NPC_BEHAVIOR, PARTY_MODE, LIMITS, NPC_GENERATION, RUMOR_SYSTEM } from '../utils/constants';
 import { EVENTS } from '../data/events';
 
 const GameContext = createContext();
@@ -63,7 +63,7 @@ export const GameProvider = ({ children }) => {
             const roll = Math.random();
 
             // SPONTANEOUS TRAIT-SPECIFIC ACTIONS
-            if (trait.autonomousActions && roll < 0.3) {
+            if (trait.autonomousActions && roll < NPC_BEHAVIOR.AUTONOMOUS_ACTION_CHANCE) {
                 const action = trait.autonomousActions[Math.floor(Math.random() * trait.autonomousActions.length)];
 
                 switch (action) {
@@ -107,7 +107,7 @@ export const GameProvider = ({ children }) => {
                         break;
 
                     case 'flirt_target':
-                        const crush = activeNpcs.filter(n => n.id !== actor.id && (actor.relationships?.[n.id] || 50) > 40)[0];
+                        const crush = activeNpcs.filter(n => n.id !== actor.id && (actor.relationships?.[n.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) > NPC_BEHAVIOR.HIGH_AFFINITY_THRESHOLD)[0];
                         if (crush) {
                             newEvents.push({
                                 id: Date.now() + Math.random(),
@@ -118,8 +118,8 @@ export const GameProvider = ({ children }) => {
                             });
                             if (!actor.relationships) actor.relationships = {};
                             if (!crush.relationships) crush.relationships = {};
-                            actor.relationships[crush.id] = Math.min(100, (actor.relationships[crush.id] || 50) + 10);
-                            crush.relationships[actor.id] = Math.min(100, (crush.relationships[actor.id] || 50) + 5);
+                            actor.relationships[crush.id] = Math.min(NPC_BEHAVIOR.MAX_AFFINITY, (actor.relationships[crush.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) + NPC_BEHAVIOR.FLIRT_AFFINITY_GAIN_ACTOR);
+                            crush.relationships[actor.id] = Math.min(NPC_BEHAVIOR.MAX_AFFINITY, (crush.relationships[actor.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) + NPC_BEHAVIOR.FLIRT_AFFINITY_GAIN_TARGET);
                         }
                         break;
 
@@ -144,7 +144,7 @@ export const GameProvider = ({ children }) => {
                             text: `${actor.name} tentou acalmar os ânimos na casa.`,
                             detail: "Pacificador."
                         });
-                        actor.publicPop = Math.min(100, (actor.publicPop || 50) + 3);
+                        actor.publicPop = Math.min(NPC_BEHAVIOR.MAX_POPULARITY, (actor.publicPop || NPC_BEHAVIOR.DEFAULT_POPULARITY) + NPC_BEHAVIOR.MEDIATE_POPULARITY_GAIN);
                         break;
 
                     case 'avoid_camera':
@@ -155,7 +155,7 @@ export const GameProvider = ({ children }) => {
                             text: `${actor.name} está sumido... ninguém sabe onde está.`,
                             detail: "Modo planta ativado."
                         });
-                        actor.publicPop = Math.max(0, (actor.publicPop || 50) - 2); // Invisibility = Bad
+                        actor.publicPop = Math.max(NPC_BEHAVIOR.MIN_POPULARITY, (actor.publicPop || NPC_BEHAVIOR.DEFAULT_POPULARITY) - NPC_BEHAVIOR.PLANTA_POPULARITY_LOSS); // Invisibility = Bad
                         break;
 
                     case 'betray_ally':
@@ -169,7 +169,7 @@ export const GameProvider = ({ children }) => {
                                 detail: "Jogo sujo!"
                             });
                             if (!actor.relationships) actor.relationships = {};
-                            actor.relationships[ally.id] = Math.max(0, (actor.relationships[ally.id] || 50) - 30);
+                            actor.relationships[ally.id] = Math.max(NPC_BEHAVIOR.MIN_AFFINITY, (actor.relationships[ally.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) - NPC_BEHAVIOR.BETRAY_AFFINITY_LOSS);
                         }
                         break;
 
@@ -185,12 +185,12 @@ export const GameProvider = ({ children }) => {
             if (targets.length === 0) return;
 
             const target = targets[Math.floor(Math.random() * targets.length)];
-            const currentAffinity = actor.relationships?.[target.id] || 50;
+            const currentAffinity = actor.relationships?.[target.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE;
 
             // Calculate conflict chance based on trait + affinity
-            let conflictChance = behaviors.conflictChance || 0.1;
-            if (currentAffinity < 30) conflictChance += 0.3;
-            if (isPartyMode) conflictChance += 0.2; // Party = More drama
+            let conflictChance = behaviors.conflictChance || NPC_BEHAVIOR.DEFAULT_CONFLICT_CHANCE;
+            if (currentAffinity < NPC_BEHAVIOR.LOW_AFFINITY_THRESHOLD) conflictChance += NPC_BEHAVIOR.LOW_AFFINITY_CONFLICT_BONUS;
+            if (isPartyMode) conflictChance += NPC_BEHAVIOR.PARTY_MODE_CONFLICT_BONUS; // Party = More drama
 
             const isConflict = Math.random() < conflictChance;
 
@@ -209,8 +209,8 @@ export const GameProvider = ({ children }) => {
                 if (!actor.relationships) actor.relationships = {};
                 if (!target.relationships) target.relationships = {};
 
-                actor.relationships[target.id] = Math.max(0, (actor.relationships[target.id] || 50) - 10);
-                target.relationships[actor.id] = Math.max(0, (target.relationships[actor.id] || 50) - 10);
+                actor.relationships[target.id] = Math.max(NPC_BEHAVIOR.MIN_AFFINITY, (actor.relationships[target.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) - NPC_BEHAVIOR.CONFLICT_AFFINITY_LOSS);
+                target.relationships[actor.id] = Math.max(NPC_BEHAVIOR.MIN_AFFINITY, (target.relationships[actor.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) - NPC_BEHAVIOR.CONFLICT_AFFINITY_LOSS);
 
                 newEvents.push({
                     id: Date.now() + Math.random(),
@@ -235,9 +235,9 @@ export const GameProvider = ({ children }) => {
                 if (!actor.relationships) actor.relationships = {};
                 if (!target.relationships) target.relationships = {};
 
-                const affinityGain = behaviors.helpChance > 0.4 ? 8 : 5; // Helpful traits gain more
-                actor.relationships[target.id] = Math.min(100, (actor.relationships[target.id] || 50) + affinityGain);
-                target.relationships[actor.id] = Math.min(100, (target.relationships[actor.id] || 50) + affinityGain);
+                const affinityGain = behaviors.helpChance > 0.4 ? NPC_BEHAVIOR.HELPFUL_TRAIT_AFFINITY_GAIN : NPC_BEHAVIOR.SOCIAL_AFFINITY_GAIN; // Helpful traits gain more
+                actor.relationships[target.id] = Math.min(NPC_BEHAVIOR.MAX_AFFINITY, (actor.relationships[target.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) + affinityGain);
+                target.relationships[actor.id] = Math.min(NPC_BEHAVIOR.MAX_AFFINITY, (target.relationships[actor.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) + affinityGain);
 
                 newEvents.push({
                     id: Date.now() + Math.random(),
@@ -250,12 +250,12 @@ export const GameProvider = ({ children }) => {
         });
 
         // [PARTY MODE] Extra chaos
-        if (isPartyMode && Math.random() > 0.6) {
+        if (isPartyMode && Math.random() > PARTY_MODE.EXTRA_CHAOS_CHANCE) {
             const randomActor = activeNpcs[Math.floor(Math.random() * activeNpcs.length)];
             const chaosRoll = Math.random();
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            if (chaosRoll > 0.8) {
+            if (chaosRoll > PARTY_MODE.CRY_THRESHOLD) {
                 newEvents.push({
                     id: Date.now() + Math.random(),
                     time,
@@ -263,7 +263,7 @@ export const GameProvider = ({ children }) => {
                     text: `${randomActor.name} bebeu demais e começou a chorar.`,
                     detail: "Cena de festa."
                 });
-            } else if (chaosRoll < 0.2) {
+            } else if (chaosRoll < PARTY_MODE.DANCE_THRESHOLD) {
                 newEvents.push({
                     id: Date.now() + Math.random(),
                     time,
@@ -275,7 +275,7 @@ export const GameProvider = ({ children }) => {
         }
 
         if (newEvents.length > 0) {
-            setHouseLog(prev => [...newEvents, ...prev].slice(0, 50));
+            setHouseLog(prev => [...newEvents, ...prev].slice(0, LIMITS.MAX_HOUSE_LOG));
         }
 
         return updates;
@@ -351,7 +351,7 @@ export const GameProvider = ({ children }) => {
 
     // --- Actions ---
     const addLog = (text, type = 'info') => {
-        setLogs(prev => [{ text, type, id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }, ...prev].slice(0, 50));
+        setLogs(prev => [{ text, type, id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }, ...prev].slice(0, LIMITS.MAX_LOGS));
     };
 
     const addSocialPost = (sentiment, context = "") => {
@@ -371,7 +371,7 @@ export const GameProvider = ({ children }) => {
 
         const randomComment = pool[Math.floor(Math.random() * pool.length)];
         const randomUser = `@user${Math.floor(Math.random() * 9000) + 1000}`;
-        setFeed(prev => [{ user: randomUser, text: `${randomComment} ${context}`, id: Date.now() }, ...prev].slice(0, 10));
+        setFeed(prev => [{ user: randomUser, text: `${randomComment} ${context}`, id: Date.now() }, ...prev].slice(0, LIMITS.MAX_FEED));
     };
 
     const generateNPCs = (count) => {
@@ -386,11 +386,11 @@ export const GameProvider = ({ children }) => {
             newNpcs.push({
                 id: i + 1,
                 name,
-                age: Math.floor(Math.random() * (35 - 19 + 1)) + 19,
+                age: Math.floor(Math.random() * (NPC_GENERATION.MAX_AGE - NPC_GENERATION.MIN_AGE + 1)) + NPC_GENERATION.MIN_AGE,
                 job: JOBS[Math.floor(Math.random() * JOBS.length)].name, // Use name property from object
                 trait: TRAITS[Math.floor(Math.random() * TRAITS.length)],
-                affinity: 20, // Lower initial affinity to test thresholds
-                publicPop: 40 + Math.floor(Math.random() * 40),
+                affinity: NPC_GENERATION.INITIAL_AFFINITY,
+                publicPop: NPC_GENERATION.INITIAL_PUBLIC_POP_MIN + Math.floor(Math.random() * NPC_GENERATION.INITIAL_PUBLIC_POP_RANGE),
                 status: 'active', // active, eliminated
                 votesReceived: 0,
                 knownJob: false,
@@ -400,8 +400,8 @@ export const GameProvider = ({ children }) => {
                 memory: [], // legacy: simple list of last interactions
                 memories: [], // NEW: Structured logs { type, severity, targetId, day }
                 knownRumors: [], // NEW: { topic, regardingId, day }
-                loyalty: Math.floor(Math.random() * 50) + 20, // 20-70 Initial Loyalty
-                beauty: Math.floor(Math.random() * 60) + 40, // 40-100 Beauty
+                loyalty: Math.floor(Math.random() * NPC_GENERATION.INITIAL_LOYALTY_RANGE) + NPC_GENERATION.INITIAL_LOYALTY_MIN,
+                beauty: Math.floor(Math.random() * NPC_GENERATION.INITIAL_BEAUTY_RANGE) + NPC_GENERATION.INITIAL_BEAUTY_MIN,
                 relationships: {} // { targetId: { status, chemistry } }
             });
         }
@@ -501,8 +501,8 @@ export const GameProvider = ({ children }) => {
         setNpcs(prev => prev.map(n => {
             if (n.id === npcId) {
                 const newMemory = { type, severity, targetId, day };
-                // Keep only last 10 relevant memories to save space
-                const updatedMemories = [newMemory, ...n.memories].slice(0, 10);
+                // Keep only last N relevant memories to save space
+                const updatedMemories = [newMemory, ...n.memories].slice(0, LIMITS.MAX_MEMORIES_PER_NPC);
                 return { ...n, memories: updatedMemories };
             }
             return n;
@@ -530,8 +530,8 @@ export const GameProvider = ({ children }) => {
                 if (sharer.status !== 'active') return;
 
                 sharer.knownRumors.forEach(rumor => {
-                    // Check older rumors (only share recent ones, e.g., < 2 days old)
-                    if (day - rumor.day > 2) return;
+                    // Check older rumors (only share recent ones)
+                    if (day - rumor.day > RUMOR_SYSTEM.MAX_RUMOR_AGE_DAYS) return;
 
                     // Find friends to share with
                     updates.forEach(listener => {
@@ -542,15 +542,15 @@ export const GameProvider = ({ children }) => {
 
                         // Willingness to share/listen
                         const isGossip = sharer.trait.name === 'Fofoqueiro'; // Assuming trait structure
-                        const shareChance = (sharer.affinity + (isGossip ? 30 : 0)) / 200; // placeholder logic
+                        const shareChance = (sharer.affinity + (isGossip ? RUMOR_SYSTEM.GOSSIP_TRAIT_SHARE_BONUS : 0)) / RUMOR_SYSTEM.SHARE_CHANCE_DIVISOR;
 
                         if (Math.random() < shareChance) {
                             // FIX: Limit knownRumors to prevent memory leak
-                            listener.knownRumors = [{ ...rumor }, ...listener.knownRumors].slice(0, 20);
+                            listener.knownRumors = [{ ...rumor }, ...listener.knownRumors].slice(0, LIMITS.MAX_RUMORS_PER_NPC);
 
                             // Effect: If rumor is about Player, listener likes Player less
                             if (rumor.regardingId === 'player') {
-                                listener.affinity = Math.max(0, listener.affinity - 5);
+                                listener.affinity = Math.max(NPC_BEHAVIOR.MIN_AFFINITY, listener.affinity - RUMOR_SYSTEM.RUMOR_AFFINITY_PENALTY);
                             }
 
                             // Log occasionally
