@@ -545,7 +545,8 @@ export const GameProvider = ({ children }) => {
                         const shareChance = (sharer.affinity + (isGossip ? 30 : 0)) / 200; // placeholder logic
 
                         if (Math.random() < shareChance) {
-                            listener.knownRumors.push({ ...rumor }); // Copy rumor
+                            // FIX: Limit knownRumors to prevent memory leak
+                            listener.knownRumors = [{ ...rumor }, ...listener.knownRumors].slice(0, 20);
 
                             // Effect: If rumor is about Player, listener likes Player less
                             if (rumor.regardingId === 'player') {
