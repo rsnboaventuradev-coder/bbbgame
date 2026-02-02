@@ -53,7 +53,7 @@ const BigPhoneModal = () => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fadeIn">
             <div className="absolute inset-0 border-[20px] border-red-600 animate-pulse pointer-events-none"></div>
 
             <div className="relative z-10 max-w-2xl w-full p-8 text-center text-white">
