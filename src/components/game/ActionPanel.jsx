@@ -1,10 +1,10 @@
 import React from 'react';
 import { useGame } from '../../context/GameContext';
-import { Home, Dumbbell, BookOpen, MessageCircle, Zap, Heart, Ear, Moon, Megaphone, Wine } from 'lucide-react';
+import { Home, Dumbbell, BookOpen, MessageCircle, Zap, Heart, Ear, Moon, Megaphone, Wine, Crown } from 'lucide-react';
 import { ACTION_COSTS, MAX_DAILY_ACTIONS, TIMES_OF_DAY } from '../../utils/constants';
 
 const ActionPanel = () => {
-    const { player, selectedTarget, executeAction, nextDay, npcs, actionsLeft, isPartyMode, drinkAlcohol } = useGame();
+    const { player, selectedTarget, executeAction, nextDay, npcs, actionsLeft, isPartyMode, drinkAlcohol, activeEvent, leaderId, setShowLeaderPanel } = useGame();
 
     const currentPeriodIndex = Math.max(0, MAX_DAILY_ACTIONS - actionsLeft);
     const currentPeriod = TIMES_OF_DAY[currentPeriodIndex] || 'Madrugada';
@@ -75,6 +75,20 @@ const ActionPanel = () => {
                         </div>
                         <span className="text-xs font-bold uppercase tracking-wide">Beber</span>
                         <span className="text-[10px] text-pink-300">+Intoxication</span>
+                    </button>
+                )}
+
+                {/* [NEW] Leader Room Access */}
+                {leaderId === 'player' && (
+                    <button
+                        onClick={() => setShowLeaderPanel(true)}
+                        className="flex flex-col items-center justify-center p-3 rounded-xl border border-yellow-500 bg-yellow-900/50 hover:bg-yellow-800 text-yellow-100 transition-all active:scale-95 shadow-lg shadow-yellow-900/20 col-span-1 animate-pulse"
+                    >
+                        <div className="p-2 rounded-full mb-1 bg-yellow-500 text-white">
+                            <Crown size={20} />
+                        </div>
+                        <span className="text-xs font-bold uppercase tracking-wide">LÍDER</span>
+                        <span className="text-[10px] text-yellow-300">Aposentos</span>
                     </button>
                 )}
 

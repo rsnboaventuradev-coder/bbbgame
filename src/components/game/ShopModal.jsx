@@ -102,7 +102,7 @@ const ShopModal = ({ onClose }) => {
     ];
 
     return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-40 p-4">
             <div className="bg-gray-900 border border-gray-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
                 {/* Header */}
                 <div className="p-6 bg-gray-800 border-b border-gray-700 flex justify-between items-center">

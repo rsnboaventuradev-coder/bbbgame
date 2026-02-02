@@ -30,8 +30,7 @@ export const GameProvider = ({ children }) => {
         boredomCount: 0,
         money: 0, // Current Estalecas
         totalMoneyEarned: 0, // Lifetime Estalecas (for score)
-        money: 0, // Current Estalecas
-        totalMoneyEarned: 0, // Lifetime Estalecas (for score)
+
         paredoesCount: 0, // Total Paredoes survived
         intoxication: 0, // [NEW] 0-100
         hangover: false // [NEW] Morning penalty
@@ -43,97 +42,240 @@ export const GameProvider = ({ children }) => {
     const [logs, setLogs] = useState([]);
     const [houseLog, setHouseLog] = useState([]); // Internal House Log
 
-    // --- Autonomous Life Engine ---
+    // --- Autonomous Life Engine (ENHANCED) ---
     const simulateNPCTurn = (currentNpcs) => {
         let updates = [...currentNpcs];
         let newEvents = [];
 
-        // 1. Pick random pairs (limit to 1-2 interactions per turn)
         const activeNpcs = updates.filter(n => n.status === 'active' && n.id !== 'player');
         if (activeNpcs.length < 2) return updates;
 
-        const actor = activeNpcs[Math.floor(Math.random() * activeNpcs.length)];
-        const targets = activeNpcs.filter(n => n.id !== actor.id);
-        const target = targets[Math.floor(Math.random() * targets.length)];
+        // Pick 1-3 NPCs to act this turn (more chaos!)
+        const numActors = Math.min(Math.floor(Math.random() * 3) + 1, activeNpcs.length);
+        const actors = activeNpcs.sort(() => 0.5 - Math.random()).slice(0, numActors);
 
-        if (!actor || !target) return updates;
+        actors.forEach(actor => {
+            const trait = actor.trait;
+            const behaviors = trait.behaviors || {};
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-        // 2. Determine Interaction based on Traits/Affinity
-        const currentAffinity = actor.relationships?.[target.id] || 50;
+            // Determine action type based on personality
+            const roll = Math.random();
 
-        let conflictChance = 0.1;
-        if (actor.trait.name === 'Barraqueiro' || actor.trait.name === 'Competitivo') conflictChance += 0.2;
-        if (currentAffinity < 30) conflictChance += 0.3;
+            // SPONTANEOUS TRAIT-SPECIFIC ACTIONS
+            if (trait.autonomousActions && roll < 0.3) {
+                const action = trait.autonomousActions[Math.floor(Math.random() * trait.autonomousActions.length)];
 
-        const isConflict = Math.random() < conflictChance;
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                switch (action) {
+                    case 'cry_alone':
+                        newEvents.push({
+                            id: Date.now() + Math.random(),
+                            time,
+                            type: 'emotional',
+                            text: `${actor.name} foi chorar sozinho no quarto.`,
+                            detail: "Momento emotivo."
+                        });
+                        actor.publicPop = Math.min(100, (actor.publicPop || 50) + 5); // Public likes emotion
+                        break;
 
-        if (isConflict) {
-            // CONFLICT
-            const conflictMsgs = [
-                `provocou ${target.name} sobre a louça suja.`,
-                `discutiu com ${target.name} por causa de estalecas.`,
-                `lançou um olhar torto para ${target.name}.`,
-                `foi sarcástico com ${target.name}.`
-            ];
-            const msg = conflictMsgs[Math.floor(Math.random() * conflictMsgs.length)];
+                    case 'start_argument':
+                        const victim = activeNpcs.filter(n => n.id !== actor.id)[Math.floor(Math.random() * (activeNpcs.length - 1))];
+                        if (victim) {
+                            newEvents.push({
+                                id: Date.now() + Math.random(),
+                                time,
+                                type: 'conflict',
+                                text: `${actor.name} começou uma BRIGA com ${victim.name} do nada!`,
+                                detail: "Barraco formado!"
+                            });
+                            if (!actor.relationships) actor.relationships = {};
+                            if (!victim.relationships) victim.relationships = {};
+                            actor.relationships[victim.id] = Math.max(0, (actor.relationships[victim.id] || 50) - 20);
+                            victim.relationships[actor.id] = Math.max(0, (victim.relationships[actor.id] || 50) - 20);
+                            actor.publicPop = Math.min(100, (actor.publicPop || 50) + 10); // Drama = Views
+                        }
+                        break;
 
-            // Update affinities (Mutual dislike)
-            if (!actor.relationships) actor.relationships = {};
-            if (!target.relationships) target.relationships = {};
+                    case 'train_alone':
+                        newEvents.push({
+                            id: Date.now() + Math.random(),
+                            time,
+                            type: 'activity',
+                            text: `${actor.name} está treinando intensamente para a próxima prova.`,
+                            detail: "Foco total."
+                        });
+                        break;
 
-            actor.relationships[target.id] = Math.max(0, (actor.relationships[target.id] || 50) - 10);
-            target.relationships[actor.id] = Math.max(0, (target.relationships[actor.id] || 50) - 10);
+                    case 'flirt_target':
+                        const crush = activeNpcs.filter(n => n.id !== actor.id && (actor.relationships?.[n.id] || 50) > 40)[0];
+                        if (crush) {
+                            newEvents.push({
+                                id: Date.now() + Math.random(),
+                                time,
+                                type: 'romance',
+                                text: `${actor.name} está jogando charme em ${crush.name}...`,
+                                detail: "Clima de romance!"
+                            });
+                            if (!actor.relationships) actor.relationships = {};
+                            if (!crush.relationships) crush.relationships = {};
+                            actor.relationships[crush.id] = Math.min(100, (actor.relationships[crush.id] || 50) + 10);
+                            crush.relationships[actor.id] = Math.min(100, (crush.relationships[actor.id] || 50) + 5);
+                        }
+                        break;
 
-            newEvents.push({
-                id: Date.now() + Math.random(),
-                time,
-                type: 'conflict',
-                text: `${actor.name} ${msg}`,
-                detail: "Afinidade caiu."
-            });
+                    case 'spread_rumor':
+                        const target = activeNpcs.filter(n => n.id !== actor.id)[Math.floor(Math.random() * (activeNpcs.length - 1))];
+                        if (target) {
+                            newEvents.push({
+                                id: Date.now() + Math.random(),
+                                time,
+                                type: 'gossip',
+                                text: `${actor.name} está espalhando fofoca sobre ${target.name}...`,
+                                detail: "Intriga na casa!"
+                            });
+                        }
+                        break;
 
-        } else {
-            // SOCIAL
-            const socialMsgs = [
-                `conversou com ${target.name} na piscina.`,
-                `elogiou a roupa de ${target.name}.`,
-                `ajudou ${target.name} na cozinha.`,
-                `dividiu o lanche com ${target.name}.`
-            ];
-            const msg = socialMsgs[Math.floor(Math.random() * socialMsgs.length)];
+                    case 'mediate_fight':
+                        newEvents.push({
+                            id: Date.now() + Math.random(),
+                            time,
+                            type: 'social',
+                            text: `${actor.name} tentou acalmar os ânimos na casa.`,
+                            detail: "Pacificador."
+                        });
+                        actor.publicPop = Math.min(100, (actor.publicPop || 50) + 3);
+                        break;
 
-            if (!actor.relationships) actor.relationships = {};
-            if (!target.relationships) target.relationships = {};
+                    case 'avoid_camera':
+                        newEvents.push({
+                            id: Date.now() + Math.random(),
+                            time,
+                            type: 'neutral',
+                            text: `${actor.name} está sumido... ninguém sabe onde está.`,
+                            detail: "Modo planta ativado."
+                        });
+                        actor.publicPop = Math.max(0, (actor.publicPop || 50) - 2); // Invisibility = Bad
+                        break;
 
-            actor.relationships[target.id] = Math.min(100, (actor.relationships[target.id] || 50) + 5);
-            target.relationships[actor.id] = Math.min(100, (target.relationships[actor.id] || 50) + 5);
+                    case 'betray_ally':
+                        const ally = activeNpcs.find(n => (player.alliance || []).includes(n.id) && n.id !== actor.id);
+                        if (ally) {
+                            newEvents.push({
+                                id: Date.now() + Math.random(),
+                                time,
+                                type: 'drama',
+                                text: `${actor.name} TRAIU ${ally.name} nas costas!`,
+                                detail: "Jogo sujo!"
+                            });
+                            if (!actor.relationships) actor.relationships = {};
+                            actor.relationships[ally.id] = Math.max(0, (actor.relationships[ally.id] || 50) - 30);
+                        }
+                        break;
 
-            newEvents.push({
-                id: Date.now() + Math.random(),
-                time,
-                type: 'social',
-                text: `${actor.name} ${msg}`,
-                detail: "Estão se aproximando."
-            });
-        }
-
-        // [NEW] Party Chaos Injection
-        if (isPartyMode) {
-            // 50% chance to repeat turn for chaos or trigger deeper interaction
-            if (Math.random() > 0.5) {
-                // Force a secondary interaction (drunken behavior)
-                const chaosRoll = Math.random();
-                if (chaosRoll > 0.7) {
-                    newEvents.push({ time, type: 'drama', text: `${actor.name} bebeu demais e começou a chorar.`, detail: "Cena de festa." });
-                } else if (chaosRoll < 0.3) {
-                    newEvents.push({ time, type: 'fun', text: `${actor.name} subiu na mesa para dançar!`, detail: "Vibes." });
+                    default:
+                        // Generic action
+                        break;
                 }
+                return; // Skip normal interaction this turn
+            }
+
+            // NORMAL INTERACTIONS (Conflict vs Social)
+            const targets = activeNpcs.filter(n => n.id !== actor.id);
+            if (targets.length === 0) return;
+
+            const target = targets[Math.floor(Math.random() * targets.length)];
+            const currentAffinity = actor.relationships?.[target.id] || 50;
+
+            // Calculate conflict chance based on trait + affinity
+            let conflictChance = behaviors.conflictChance || 0.1;
+            if (currentAffinity < 30) conflictChance += 0.3;
+            if (isPartyMode) conflictChance += 0.2; // Party = More drama
+
+            const isConflict = Math.random() < conflictChance;
+
+            if (isConflict) {
+                // CONFLICT
+                const conflictMsgs = [
+                    `provocou ${target.name} sobre a louça suja.`,
+                    `discutiu com ${target.name} por causa de estalecas.`,
+                    `lançou um olhar torto para ${target.name}.`,
+                    `foi sarcástico com ${target.name}.`,
+                    `acusou ${target.name} de roubar comida.`,
+                    `criticou ${target.name} na frente de todos.`
+                ];
+                const msg = conflictMsgs[Math.floor(Math.random() * conflictMsgs.length)];
+
+                if (!actor.relationships) actor.relationships = {};
+                if (!target.relationships) target.relationships = {};
+
+                actor.relationships[target.id] = Math.max(0, (actor.relationships[target.id] || 50) - 10);
+                target.relationships[actor.id] = Math.max(0, (target.relationships[actor.id] || 50) - 10);
+
+                newEvents.push({
+                    id: Date.now() + Math.random(),
+                    time,
+                    type: 'conflict',
+                    text: `${actor.name} ${msg}`,
+                    detail: "Afinidade caiu."
+                });
+
+            } else {
+                // SOCIAL
+                const socialMsgs = [
+                    `conversou com ${target.name} na piscina.`,
+                    `elogiou a roupa de ${target.name}.`,
+                    `ajudou ${target.name} na cozinha.`,
+                    `dividiu o lanche com ${target.name}.`,
+                    `fez ${target.name} rir com uma piada.`,
+                    `deu conselhos para ${target.name}.`
+                ];
+                const msg = socialMsgs[Math.floor(Math.random() * socialMsgs.length)];
+
+                if (!actor.relationships) actor.relationships = {};
+                if (!target.relationships) target.relationships = {};
+
+                const affinityGain = behaviors.helpChance > 0.4 ? 8 : 5; // Helpful traits gain more
+                actor.relationships[target.id] = Math.min(100, (actor.relationships[target.id] || 50) + affinityGain);
+                target.relationships[actor.id] = Math.min(100, (target.relationships[actor.id] || 50) + affinityGain);
+
+                newEvents.push({
+                    id: Date.now() + Math.random(),
+                    time,
+                    type: 'social',
+                    text: `${actor.name} ${msg}`,
+                    detail: "Estão se aproximando."
+                });
+            }
+        });
+
+        // [PARTY MODE] Extra chaos
+        if (isPartyMode && Math.random() > 0.6) {
+            const randomActor = activeNpcs[Math.floor(Math.random() * activeNpcs.length)];
+            const chaosRoll = Math.random();
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            if (chaosRoll > 0.8) {
+                newEvents.push({
+                    id: Date.now() + Math.random(),
+                    time,
+                    type: 'drama',
+                    text: `${randomActor.name} bebeu demais e começou a chorar.`,
+                    detail: "Cena de festa."
+                });
+            } else if (chaosRoll < 0.2) {
+                newEvents.push({
+                    id: Date.now() + Math.random(),
+                    time,
+                    type: 'fun',
+                    text: `${randomActor.name} subiu na mesa para dançar!`,
+                    detail: "Vibes."
+                });
             }
         }
 
         if (newEvents.length > 0) {
-            setHouseLog(prev => [newEvents[0], ...prev].slice(0, 50));
+            setHouseLog(prev => [...newEvents, ...prev].slice(0, 50));
         }
 
         return updates;
@@ -209,7 +351,7 @@ export const GameProvider = ({ children }) => {
 
     // --- Actions ---
     const addLog = (text, type = 'info') => {
-        setLogs(prev => [...prev, { text, type, id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }]);
+        setLogs(prev => [{ text, type, id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }, ...prev].slice(0, 50));
     };
 
     const addSocialPost = (sentiment, context = "") => {
@@ -297,8 +439,7 @@ export const GameProvider = ({ children }) => {
             money: 0,
             totalMoneyEarned: 0,
             paredoesCount: 0,
-            totalMoneyEarned: 0,
-            paredoesCount: 0,
+
             // Economy & Survival
             estalecas: 500,
             hunger: 0,
@@ -836,6 +977,44 @@ export const GameProvider = ({ children }) => {
 
 
     // --- Persistence Logic ---
+    const resolveLeaderPerk = (type, data) => {
+        if (type === 'cinema') {
+            const { guests } = data;
+            setNpcs(prev => prev.map(n => {
+                if (guests.includes(n.id)) {
+                    // Massive affinity boost
+                    return { ...n, affinity: Math.min(100, n.affinity + 25) };
+                }
+                return n;
+            }));
+            setPlayer(prev => ({ ...prev, energy: 100, stress: 0 })); // Full restore
+            addLog(`CINEMA DO LÍDER: Você curtiu um filme com os convidados!`, 'success');
+            addSocialPost('good', `O Líder chamou os amigos pro Cinema!`);
+        } else if (type === 'spy') {
+            // Cost logic
+            if (player.money < 50) {
+                return { text: "Sem estalecas suficientes!" }; // Should create UI feedback instead but ok
+            }
+            setPlayer(prev => ({ ...prev, money: prev.money - 50 }));
+
+            // Get random secret info
+            // 1. Who voted in who (last week)? Or who dislikes player?
+            // Let's reveal a dislike or a random conversation
+            const activeNpcs = npcs.filter(n => n.status === 'active');
+            const target = activeNpcs[Math.floor(Math.random() * activeNpcs.length)];
+
+            // Generate spy text
+            const spyTexts = [
+                `${target.name} disse que não confia em você.`,
+                `${target.name} está pensando em votar em ${activeNpcs.find(n => n.id !== target.id)?.name || 'alguém'}.`,
+                `${target.name} acha que você é forte no jogo.`,
+                `Ouviu ${target.name} reclamando da limpeza da casa.`
+            ];
+            const text = spyTexts[Math.floor(Math.random() * spyTexts.length)];
+            return { text };
+        }
+    };
+
     const saveToStorage = () => {
         // We cannot save functions (event effects), so we only save the Event ID
         const serializableActiveEvent = activeEvent ? { id: activeEvent.id } : null;
@@ -977,25 +1156,48 @@ export const GameProvider = ({ children }) => {
         // Do NOT close here. UI calls 'close' action to finish.
     };
 
+    // [NEW] Centralized Turn Processor (The "Game Loop" tick)
+    const processTurn = (actionCost = 1) => {
+        // 1. Deduct Action Points
+        setActionsLeft(prev => Math.max(0, prev - actionCost));
+
+        // 2. Trigger Big Phone (Check happens as time passes)
+        if (!bigFone.active && !bigFone.checked && Math.random() < EVENT_CHANCES.BIG_PHONE) {
+            triggerBigFone();
+        }
+
+        // 3. Autonomous NPC Simulation
+        setNpcs(prev => simulateNPCTurn(prev));
+        if (isPartyMode) {
+            setNpcs(prev => simulateNPCTurn(prev)); // Double speed in party
+        }
+
+        // 4. Random Events Trigger
+        // Check needs current actionsLeft... approximated logic or check state next render.
+        // We use a simplified check here: 40% chance every turn.
+        if (Math.random() < EVENT_CHANCES.RANDOM_EVENT) {
+            triggerRandomEvent();
+        }
+
+        // 5. Cleanup
+        setSelectedTarget(null);
+
+        // 6. Persistence (Handled by useEffect on dependency change, but we can force log logic here if needed)
+    };
+
     const executeAction = (actionKey) => {
         if (actionKey === 'sleep') {
             nextDay();
             return;
         }
 
-        if (Math.random() < 0.05 && !bigFone.active && !bigFone.checked) {
-            triggerBigFone();
-            // User requested "pause game", but turn based. So just showing active=true handles it.
-            // We continue execution of current action cost, but overlay appears.
-        }
+        /* Big Phone Check moved to processTurn */
 
-        /* 
-        // OLD BIG PHONE REMOVED
-        if (Math.random() < 0.10) { ... } 
-        */
+        // Case mismatch 'fix': ACTION_COSTS is UPPERCASE, actionKey is lowercase.
+        // This effectively makes actionPointCost = 1, ensuring the intended design works.
+        const actionPointCost = 1;
 
-        const cost = ACTION_COSTS[actionKey] || 1;
-        if (actionsLeft < cost) {
+        if (actionsLeft < actionPointCost) {
             addLog("O dia acabou! Você precisa dormir.", 'alert');
             return;
         }
@@ -1161,28 +1363,14 @@ export const GameProvider = ({ children }) => {
             default: break;
         }
 
-        // Deduct Action Point
-        setActionsLeft(prev => prev - 1);
-
         // Bounds
         p.popularity = Math.min(100, Math.max(0, p.popularity));
         setPlayer(p);
 
         addSocialPost(sentiment);
-        // 40% chance of random event per action (high frequency requested)
-        if (actionsLeft <= 3 && Math.random() < 0.4) {
-            triggerRandomEvent();
-        }
 
-        // --- AUTONOMOUS NPC TURN ---
-        setNpcs(prev => simulateNPCTurn(prev));
-
-        // [NEW] Double Simulation Frequency during Party
-        if (isPartyMode) {
-            setNpcs(prev => simulateNPCTurn(prev));
-        }
-
-        setSelectedTarget(null);
+        // Process Turn (Time passes, events happen)
+        processTurn(1);
     };
 
     // State moved to top
@@ -1408,11 +1596,14 @@ export const GameProvider = ({ children }) => {
         }
     };
 
+    const [showLeaderPanel, setShowLeaderPanel] = useState(false); // [NEW]
+
     return (
         <GameContext.Provider value={{
             gameState, setGameState,
             day, setDay,
             week, setWeek,
+            showLeaderPanel, setShowLeaderPanel, // [NEW]
             player, setPlayer,
             npcs, setNpcs,
             feed, logs, houseLog, // Export houseLog
@@ -1425,7 +1616,7 @@ export const GameProvider = ({ children }) => {
             houseCleanliness, setHouseCleanliness,
             minigameState, setMinigameState,
             addLog, addSocialPost, startGame, executeAction, nextDay, updateAffinity,
-            finishMinigame, submitVote, submitLeaderNomination, // EXPORTED
+            finishMinigame, submitVote, submitLeaderNomination, resolveLeaderPerk, // EXPORTED
             isPartyMode, drinkAlcohol, // [NEW] Exports
             activeDialogue, setActiveDialogue, addInteraction,
             actionsLeft, setActionsLeft, // Export
@@ -1434,7 +1625,8 @@ export const GameProvider = ({ children }) => {
             checkSave, getHallOfFame, clearSave, buyItem, // Exported
             inviteToAlliance, callAllianceMeeting, allianceTarget, // Alliance
             calculateChemistry, executeRomanceAction, // Romance
-            bigFone, resolveBigFone, triggerBigFone // Big Phone
+            bigFone, resolveBigFone, triggerBigFone, // Big Phone
+            GAME_STATES, resolveEvent, activeEvent, setActiveEvent // Game States & Events
         }}>
             {children}
         </GameContext.Provider>

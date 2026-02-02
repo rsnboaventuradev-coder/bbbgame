@@ -6,7 +6,7 @@ import { useGame } from '../../context/GameContext';
 import { LogOut } from 'lucide-react';
 
 const GameLayout = ({ children }) => {
-    const { gameState, setGameState, isPartyMode } = useGame(); // [NEW] Consume isPartyMode
+    const { gameState, setGameState, isPartyMode, player } = useGame(); // [MODIFIED] Added player
 
     return (
         <div className="min-h-screen bg-gray-950 text-white font-sans flex flex-col md:flex-row overflow-hidden">
@@ -31,6 +31,14 @@ const GameLayout = ({ children }) => {
                         : 'bg-gradient-to-br from-gray-900 to-gray-950'}
                 `}>
                     {children}
+
+                    {/* [NEW] Hunger Overlay Effect */}
+                    {player?.hunger > 80 && (
+                        <div className="absolute inset-0 pointer-events-none z-0 shadow-[inset_0_0_100px_rgba(255,0,0,0.5)] animate-pulse">
+                            {/* Optional: Vignette or blur */}
+                        </div>
+                    )}
+
                     {/* Party Lights Overlay */}
                     {isPartyMode && (
                         <div className="absolute inset-0 pointer-events-none opacity-20 mix-blend-overlay bg-[radial-gradient(circle_at_50%_50%,_rgba(255,0,0,0.5),transparent_50%)] animate-spin-slow"></div>

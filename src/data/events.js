@@ -1,101 +1,375 @@
 export const EVENTS = [
     // --- EXISTING ---
-    // --- EXISTING ---
     {
         id: 'big_phone_ring',
         text: 'O BIG FONE ESTÁ TOCANDO! O que você faz?',
         trigger: 'special',
-        weight: 0, // Triggered manually
+        weight: 0,
         choices: [
             {
                 text: "ATENDER CORRENDO!",
                 sentiment: 'drama',
-                effect: (player, setPlayer, npcs, setNpcs, addLog) => {
-                    const outcomes = ['immunity', 'danger', 'nominate'];
+                effect: (player, setPlayer, npcs, setNpcs, addLog, addMemory, setImmunes, setNominees) => {
+                    const outcomes = ['immunity', 'wall', 'power'];
                     const outcome = outcomes[Math.floor(Math.random() * outcomes.length)];
-
                     if (outcome === 'immunity') {
-                        // We need access to setImmunes. Currently effect signature is limited.
-                        // Workaround: We will handle special flags in resolveEvent or expand signature?
-                        // For now, let's use a simpler approach: Log result, and GameContext middleware handles 'big_phone_ring' logic?
-                        // OR: expand the signature in GameContext.jsx to pass all setters.
-                        // Let's assume standard signature for now and just log, but we need state change.
-                        // Actually, I can add `setImmunes` etc to the effect signature in GameContext calls.
-
-                        // BUT, to keep it simple and consistent with standard events, let's just use what we have or 
-                        // cheat by accessing global/closure if possible (not possible here).
-
-                        // Better Plan: Add specific logic in resolveEvent for this ID if needed, 
-                        // OR update resolveEvent to pass everything.
-
-                        // Let's update resolveEvent in GameContext to pass a `context` object with everything.
-                        addLog("☎ BIG FONE: Tocou!", 'drama');
+                        setImmunes(prev => [...prev, 'player']);
+                        addLog("☎ BIG FONE: Você está IMUNE!", 'success');
+                    } else if (outcome === 'wall') {
+                        setNominees(prev => [...prev, 'player']);
+                        addLog("☎ BIG FONE: Você está no PAREDÃO!", 'bad');
+                    } else {
+                        addLog("☎ BIG FONE: Você ganhou o Poder do Voto Duplo (WIP)!", 'info');
                     }
                 }
             },
             {
-                text: "Ignorar (Deixar outro atender)",
+                text: "Ignorar",
                 sentiment: 'neutral',
-                effect: (player, setPlayer, npcs, setNpcs, addLog) => {
-                    const activeNpcs = npcs.filter(n => n.status === 'active');
-                    const runner = activeNpcs[Math.floor(Math.random() * activeNpcs.length)];
-                    addLog(`${runner.name} atendeu o Big Fone!`, 'warning');
-                    if (Math.random() > 0.5) {
-                        addLog(`☎ BIG FONE: ${runner.name} ganhou um poder misterioso!`, 'system');
-                    } else {
-                        addLog(`☎ BIG FONE: ${runner.name} foi para o Paredão!`, 'system');
-                    }
+                effect: (p, setP, npcs, setN, addLog) => {
+                    const runner = npcs.find(n => n.status === 'active');
+                    if (runner) addLog(`${runner.name} atendeu o Big Fone!`, 'system');
                 }
             }
         ]
     },
+    // --- SOCIAL & DRAMA ---
     {
-        id: 'party',
-        text: "A festa começou! O que você vai fazer?",
-        trigger: 'special',
-        weight: 0,
+        id: 'punishment_food',
+        text: "ALERTA: Alguém comeu o bolo da Xepa que não devia! A casa toda foi punida.",
+        trigger: 'random',
+        weight: 1,
         choices: [
             {
-                text: "Se acabar na pista (Energia -20, Estresse -25)",
-                sentiment: 'positive',
+                text: "Reclamar com todos",
+                sentiment: 'negative',
                 effect: (p, setP, npcs, setN, addLog) => {
-                    setP(prev => ({ ...prev, energy: Math.max(0, prev.energy - 20), stress: Math.max(0, prev.stress - 25) }));
-                    const activeNpcs = npcs.filter(n => n.status === 'active');
-                    if (activeNpcs.length > 0) {
-                        const randomFriend = activeNpcs[Math.floor(Math.random() * activeNpcs.length)];
-                        setN(prev => prev.map(n => n.id === randomFriend.id ? { ...n, affinity: Math.min(100, n.affinity + 5) } : n));
-                        addLog(`Você dançou muito com ${randomFriend.name}!`, 'success');
-                    }
+                    setP(prev => ({ ...prev, stress: prev.stress + 10 }));
+                    setN(prev => prev.map(n => ({ ...n, affinity: Math.max(0, n.affinity - 5) })));
+                    addLog("Você causou um climão reclamando da comida.", 'bad');
                 }
             },
             {
-                text: "Comer e observar (Energia +10, Estresse -10)",
+                text: "Ficar quieto",
                 sentiment: 'neutral',
-                effect: (p, setP, npcs, setN, addLog) => {
-                    setP(prev => ({ ...prev, energy: Math.min(100, prev.energy + 10), stress: Math.max(0, prev.stress - 10) }));
-                    addLog("Você ficou de boa na festa.", 'info');
+                effect: (p, setP) => {
+                    setP(prev => ({ ...prev, hunger: prev.hunger + 20 }));
+                    addLog("Você aceitou a punição em silêncio.", 'neutral');
                 }
             }
         ]
     },
     {
-        id: 'discordia',
-        text: "É hora do Jogo da Discórdia! Escolha alguém para criticar na frente da casa:",
-        trigger: 'special',
-        weight: 0,
-        choices: [] // Generated dynamically in Context, but base object needed? 
-        // Actually, Discordia choices are dynamic (targets). We can't fully staticize it here easily without changing logic.
-        // Option 1: Keep it inline but don't persist it? No, reloading breaks it.
-        // Option 2: Persist the WHOLE event object? No, we removed that capability.
-        // Option 3: Standardize choices. e.g. "Criticar Rival", "Criticar Amigo".
-        // Option 4: Handle hydration specially for dynamic events?
-        // Let's stick to Option 3 for simplicity, or make hydration smarter?
-        // Actually, if I define it here with empty choices, reload will load it with empty choices.
-        // Fix: Make Discordia a standard event with generic choices that then open a sub-modal or trigger a logic?
-        // OR: Re-generate the choices in loadFromStorage?
-        // Best approach for now: Generic choices that trigger the logic.
-        // "Escolher Alvo" -> Opens Interaction Modal?
-        // Let's make it simpler: "Criticar quem te odeia" / "Criticar quem você odeia".
+        id: 'pool_talk',
+        text: "Um grupo está falando mal de um aliado seu na piscina. Você ouve tudo.",
+        trigger: 'random',
+        weight: 1,
+        choices: [
+            {
+                text: "Defender o aliado",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, popularity: prev.popularity + 5 }));
+                    addLog("Você defendeu seu amigo! O público gostou da lealdade.", 'success');
+                }
+            },
+            {
+                text: "Ficar calado para não se expor",
+                sentiment: 'neutral',
+                effect: (p, setP) => {
+                    setP(prev => ({ ...prev, strategy: prev.strategy + 5 }));
+                    addLog("Você guardou a informação para usar depois.", 'info');
+                }
+            }
+        ]
+    },
+    {
+        id: 'party_aftermath',
+        text: "A festa acabou, mas deixaram a sala imunda. O que fazer?",
+        trigger: 'random',
+        weight: 0.8,
+        choices: [
+            {
+                text: "Limpar tudo sozinho",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, energy: prev.energy - 20, popularity: prev.popularity + 5 }));
+                    addLog("Você limpou a sujeira dos outros. Alguns te acham planta, outros admiram.", 'info');
+                }
+            },
+            {
+                text: "Acordar geral batendo panela!",
+                sentiment: 'drama',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, stress: prev.stress - 10 })); // Catharsis
+                    setN(prev => prev.map(n => ({ ...n, affinity: n.affinity - 10 })));
+                    addLog("PANELAÇO! A casa acordou te odiando, mas você lavou a alma.", 'drama');
+                }
+            }
+        ]
+    },
+    {
+        id: 'crush_look',
+        text: "Você percebeu alguém te olhando diferente durante o almoço...",
+        trigger: 'random',
+        weight: 1,
+        choices: [
+            {
+                text: "Sorrir de volta",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    const admirer = npcs.find(n => n.status === 'active' && n.id !== 'player');
+                    if (admirer) {
+                        setN(prev => prev.map(n => n.id === admirer.id ? { ...n, affinity: n.affinity + 10 } : n));
+                        addLog(`Você e ${admirer.name} trocaram olhares...`, 'success');
+                    }
+                }
+            },
+            {
+                text: "Fingir que não viu",
+                sentiment: 'neutral',
+                effect: (p, setP) => {
+                    setP(prev => ({ ...prev, strategy: prev.strategy + 2 }));
+                    addLog("Foco no jogo, sem romance agora.", 'neutral');
+                }
+            }
+        ]
+    },
+    {
+        id: 'fake_news',
+        text: "Um boato diz que você vai votar no Líder. É mentira, mas espalharam.",
+        trigger: 'random',
+        weight: 0.7,
+        choices: [
+            {
+                text: "Desmentir publicamente",
+                sentiment: 'drama',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, stress: prev.stress + 5 }));
+                    addLog("Você reuniu a casa para se explicar. O clima pesou.", 'warning');
+                }
+            },
+            {
+                text: "Deixar falarem",
+                sentiment: 'neutral',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, popularity: prev.popularity - 2 }));
+                    addLog("O Líder ficou desconfiado...", 'bad');
+                }
+            }
+        ]
+    },
+    {
+        id: 'food_theft',
+        text: "Desaparareceram 5 ovos da sua cartela na geladeira!",
+        trigger: 'random',
+        weight: 0.9,
+        choices: [
+            {
+                text: "Investigar quem foi",
+                sentiment: 'neutral',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, strategy: prev.strategy + 5, energy: prev.energy - 5 }));
+                    addLog("Você ficou de tocaia na cozinha.", 'info');
+                }
+            },
+            {
+                text: "Armar um barraco na sala",
+                sentiment: 'drama',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setN(prev => prev.map(n => ({ ...n, affinity: n.affinity - 5 })));
+                    setP(prev => ({ ...prev, popularity: prev.popularity + 5 })); // Public likes drama
+                    addLog("CADÊ MEUS OVOS?? O Brasil viu seu surto.", 'drama');
+                }
+            }
+        ]
+    },
+    {
+        id: 'missing_family',
+        text: "Tocou uma música que te lembrou da família. A saudade bateu forte.",
+        trigger: 'random',
+        weight: 0.8,
+        choices: [
+            {
+                text: "Chorar escondido no quarto",
+                sentiment: 'negative',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, stress: Math.max(0, prev.stress - 20) })); // Crying helps
+                    addLog("Você desabafou com o travesseiro.", 'neutral');
+                }
+            },
+            {
+                text: "Dividir com os amigos",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setN(prev => prev.map(n => ({ ...n, affinity: n.affinity + 5 })));
+                    addLog("Todos te consolaram. A aliança se fortaleceu.", 'success');
+                }
+            }
+        ]
+    },
+    {
+        id: 'mic_fail',
+        text: "ATENÇÃO: Você esqueceu o microfone ou falou sem ele. Punição!",
+        trigger: 'random',
+        weight: 0.5,
+        choices: [
+            {
+                text: "Pedir desculpas",
+                sentiment: 'neutral',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, estalecas: Math.max(0, prev.estalecas - 50) }));
+                    addLog("Você perdeu 50 estalecas.", 'bad');
+                }
+            }
+        ]
+    },
+    {
+        id: 'plant_mode',
+        text: "Você percebeu que não apareceu muito no jogo nos últimos dias.",
+        trigger: 'random',
+        weight: 0.6,
+        choices: [
+            {
+                text: "Pular na piscina de roupa",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, popularity: prev.popularity + 10, stress: prev.stress - 5 }));
+                    addLog("VTzeiro! O público adorou sua loucura.", 'success');
+                }
+            },
+            {
+                text: "Criar uma estratégia nova",
+                sentiment: 'neutral',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, strategy: prev.strategy + 10 }));
+                    addLog("Você passou horas desenhando cenários de voto.", 'info');
+                }
+            }
+        ]
+    },
+    // --- PARTY & STRATEGY ---
+    {
+        id: 'secret_reveal',
+        text: "Você achou um papel amassado no lixo do banheiro. Parece uma combinação de votos!",
+        trigger: 'random',
+        weight: 0.3,
+        choices: [
+            {
+                text: "Ler imediatamente",
+                sentiment: 'neutral',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, strategy: prev.strategy + 15 }));
+                    addLog("Você descobriu os planos do grupo rival!", 'success');
+                }
+            },
+            {
+                text: "Mostrar para seu aliado",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    addLog("Seu aliado ficou chocado com a descoberta.", 'info');
+                }
+            }
+        ]
+    },
+    {
+        id: 'monster_threat',
+        text: "O Monstro da semana está insuportável batendo panelas no seu ouvido!",
+        trigger: 'random',
+        weight: 0.5,
+        choices: [
+            {
+                text: "Discutir com o Monstro",
+                sentiment: 'drama',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, stress: prev.stress + 10 }));
+                    addLog("Você pediu respeito, mas virou bate-boca.", 'bad');
+                }
+            },
+            {
+                text: "Ajudar o Monstro",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, popularity: prev.popularity + 5 }));
+                    addLog("Você levou água para o Monstro. Empatia +10.", 'success');
+                }
+            }
+        ]
+    },
+    {
+        id: 'hair_cut',
+        text: "Tédio total. Alguém sugere cortar seu cabelo.",
+        trigger: 'random',
+        weight: 0.4,
+        choices: [
+            {
+                text: "Aceitar mudança radical",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    const success = Math.random() > 0.5;
+                    if (success) {
+                        setP(prev => ({ ...prev, beauty: Math.min(100, prev.beauty + 10) }));
+                        addLog("Ficou ótimo! Autoestima renovada.", 'success');
+                    } else {
+                        setP(prev => ({ ...prev, beauty: Math.max(0, prev.beauty - 10), stress: prev.stress + 10 }));
+                        addLog("Ficou horrível... Você chorou no espelho.", 'bad');
+                    }
+                }
+            },
+            {
+                text: "Recusar",
+                sentiment: 'neutral',
+                effect: (p, setP) => {
+                    addLog("Melhor não arriscar a imagem.", 'neutral');
+                }
+            }
+        ]
+    },
+    {
+        id: 'insect_invasion',
+        text: "Uma barata surgiu no meio da sala!",
+        trigger: 'random',
+        weight: 0.5,
+        choices: [
+            {
+                text: "Subir no sofá gritando",
+                sentiment: 'drama',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    addLog("Meme instantâneo: Sua cara de pavor viralizou.", 'fun');
+                }
+            },
+            {
+                text: "Matar com o chinelo",
+                sentiment: 'neutral',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    addLog("Você resolveu o problema com frieza.", 'info');
+                }
+            },
+            {
+                text: "Salvar a barata e levar pro jardim",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, popularity: prev.popularity + 2 }));
+                    addLog("A Luisa Mell curtiu isso.", 'success');
+                }
+            }
+        ]
+    },
+    {
+        id: 'sponsorship',
+        text: "Ação de Publicidade! Todos ganharam presentes do patrocinador.",
+        trigger: 'random',
+        weight: 0.2, // Rare
+        choices: [
+            {
+                text: "Comemorar",
+                sentiment: 'positive',
+                effect: (p, setP, npcs, setN, addLog) => {
+                    setP(prev => ({ ...prev, stress: 0, hunger: 0 })); // Full restore
+                    addLog("Comida boa e presentes! O humor da casa melhorou 100%.", 'success');
+                }
+            }
+        ]
     },
     {
         id: 'punishment',
@@ -222,8 +496,6 @@ export const EVENTS = [
     {
         id: 'fake_news',
         text: 'Um participante inventou que você falou mal da torcida de outro.',
-        trigger: 'random',
-        weight: 0.9,
         choices: [
             {
                 text: 'Chorar e negar',

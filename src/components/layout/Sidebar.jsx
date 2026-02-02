@@ -28,9 +28,22 @@ const Sidebar = () => {
         <>
             <div className="w-full md:w-72 bg-gray-900 p-6 border-r border-gray-800 flex flex-col gap-6 shadow-2xl z-10 overflow-y-auto">
                 {/* Player Header */}
-                <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-2xl font-bold shadow-lg ring-2 ring-purple-500/30">
+                <div className="flex items-center gap-4 relative">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-2xl font-bold shadow-lg ring-2 ring-purple-500/30 relative">
                         {player.name.charAt(0)}
+
+                        {/* [NEW] Low Hygiene Indicator */}
+                        {player.hygiene < 30 && (
+                            <div className="absolute -top-2 -right-2 animate-bounce">
+                                <span className="text-xl filter drop-shadow-md">🪰</span>
+                            </div>
+                        )}
+                        {/* [NEW] High Hunger Indicator */}
+                        {player.hunger > 80 && (
+                            <div className="absolute -bottom-2 -right-2 animate-pulse">
+                                <span className="text-xl filter drop-shadow-md">🍖</span>
+                            </div>
+                        )}
                     </div>
                     <div>
                         <h2 className="text-xl font-bold text-white leading-tight">{player.name}</h2>

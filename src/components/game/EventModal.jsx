@@ -13,7 +13,7 @@ const EventModal = ({ event, onResolve }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-sm">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-40 animate-fade-in backdrop-blur-sm">
             <div className="bg-white text-gray-900 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl transform scale-100 transition-all">
                 {/* Header Image/Icon Area */}
                 <div className="bg-gray-100 p-6 flex justify-center border-b border-gray-200">

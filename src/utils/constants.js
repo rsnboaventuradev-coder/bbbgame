@@ -27,14 +27,155 @@ export const JOBS = [
 ];
 
 export const TRAITS = [
-    { id: 'leader', name: 'Líder Nato', desc: 'Tende a puxar responsabilidade.', bonus: { strategy: 10 } },
-    { id: 'emotional', name: 'Emotivo', desc: 'Chora fácil, mas ganha empatia.', bonus: { charisma: 10 } },
-    { id: 'competitive', name: 'Competitivo', desc: 'Focado em vencer provas.', bonus: { endurance: 10 } },
-    { id: 'barraqueiro', name: 'Barraqueiro', desc: 'Gera entretenimento, mas cria inimigos.', bonus: { charisma: 5 } }, // Risk high
-    { id: 'planta', name: 'Planta', desc: 'Foge do jogo, público tende a esquecer.', bonus: { strategy: 5 } },
-    { id: 'strategist', name: 'Estrategista', desc: 'Joga com a mente, perigoso no paredão.', bonus: { strategy: 15 } },
-    { id: 'sedutor', name: 'Sedutor', desc: 'Foca em romances e alianças duplas.', bonus: { charisma: 15 } },
-    { id: 'amigo', name: 'Amigo Leal', desc: 'Ganha confiança rápido.', bonus: { charisma: 10 } }
+    {
+        id: 'leader',
+        name: 'Líder Nato',
+        desc: 'Tende a puxar responsabilidade e organizar o grupo.',
+        bonus: { strategy: 10, charisma: 5 },
+        behaviors: {
+            conflictChance: 0.15,
+            allianceChance: 0.4,
+            gossipChance: 0.1,
+            romanceChance: 0.1,
+            helpChance: 0.5
+        },
+        autonomousActions: ['organize_meeting', 'mediate_conflict', 'plan_strategy']
+    },
+    {
+        id: 'emotional',
+        name: 'Emotivo',
+        desc: 'Chora fácil, mas ganha empatia do público.',
+        bonus: { charisma: 10 },
+        behaviors: {
+            conflictChance: 0.05,
+            allianceChance: 0.3,
+            gossipChance: 0.05,
+            romanceChance: 0.25,
+            helpChance: 0.4,
+            cryChance: 0.3
+        },
+        autonomousActions: ['cry_alone', 'seek_comfort', 'share_feelings']
+    },
+    {
+        id: 'competitive',
+        name: 'Competitivo',
+        desc: 'Focado em vencer provas e ser o melhor.',
+        bonus: { endurance: 10, strategy: 5 },
+        behaviors: {
+            conflictChance: 0.25,
+            allianceChance: 0.2,
+            gossipChance: 0.1,
+            romanceChance: 0.05,
+            helpChance: 0.1,
+            trainChance: 0.4
+        },
+        autonomousActions: ['train_alone', 'challenge_others', 'boast_skills']
+    },
+    {
+        id: 'barraqueiro',
+        name: 'Barraqueiro',
+        desc: 'Gera entretenimento e drama, mas cria inimigos.',
+        bonus: { charisma: 5 },
+        behaviors: {
+            conflictChance: 0.5,
+            allianceChance: 0.15,
+            gossipChance: 0.4,
+            romanceChance: 0.2,
+            helpChance: 0.05,
+            dramaChance: 0.6
+        },
+        autonomousActions: ['start_argument', 'spread_rumor', 'provoke_others']
+    },
+    {
+        id: 'planta',
+        name: 'Planta',
+        desc: 'Evita conflitos e passa despercebido.',
+        bonus: { strategy: 5 },
+        behaviors: {
+            conflictChance: 0.02,
+            allianceChance: 0.1,
+            gossipChance: 0.05,
+            romanceChance: 0.05,
+            helpChance: 0.15,
+            hideChance: 0.5
+        },
+        autonomousActions: ['avoid_camera', 'stay_quiet', 'observe_others']
+    },
+    {
+        id: 'strategist',
+        name: 'Estrategista',
+        desc: 'Joga com a mente, manipula e planeja.',
+        bonus: { strategy: 15, charisma: 5 },
+        behaviors: {
+            conflictChance: 0.1,
+            allianceChance: 0.5,
+            gossipChance: 0.35,
+            romanceChance: 0.15,
+            helpChance: 0.2,
+            manipulateChance: 0.4
+        },
+        autonomousActions: ['plant_seed_doubt', 'form_alliance', 'gather_intel']
+    },
+    {
+        id: 'sedutor',
+        name: 'Sedutor',
+        desc: 'Foca em romances e usa charme como estratégia.',
+        bonus: { charisma: 15 },
+        behaviors: {
+            conflictChance: 0.1,
+            allianceChance: 0.25,
+            gossipChance: 0.15,
+            romanceChance: 0.6,
+            helpChance: 0.2,
+            flirtChance: 0.5
+        },
+        autonomousActions: ['flirt_target', 'create_love_triangle', 'use_charm']
+    },
+    {
+        id: 'amigo',
+        name: 'Amigo Leal',
+        desc: 'Ganha confiança rápido e mantém alianças.',
+        bonus: { charisma: 10, strategy: 5 },
+        behaviors: {
+            conflictChance: 0.05,
+            allianceChance: 0.5,
+            gossipChance: 0.05,
+            romanceChance: 0.2,
+            helpChance: 0.6,
+            loyaltyBonus: 20
+        },
+        autonomousActions: ['help_friend', 'defend_ally', 'share_resources']
+    },
+    {
+        id: 'manipulator',
+        name: 'Manipulador',
+        desc: 'Mestre em jogar duplo e criar caos controlado.',
+        bonus: { strategy: 12, charisma: 8 },
+        behaviors: {
+            conflictChance: 0.2,
+            allianceChance: 0.4,
+            gossipChance: 0.5,
+            romanceChance: 0.1,
+            helpChance: 0.1,
+            betrayChance: 0.3
+        },
+        autonomousActions: ['betray_ally', 'pit_against', 'fake_friendship']
+    },
+    {
+        id: 'peacemaker',
+        name: 'Pacificador',
+        desc: 'Tenta manter a paz e mediar conflitos.',
+        bonus: { charisma: 12 },
+        behaviors: {
+            conflictChance: 0.03,
+            allianceChance: 0.35,
+            gossipChance: 0.05,
+            romanceChance: 0.15,
+            helpChance: 0.5,
+            mediateChance: 0.4
+        },
+        autonomousActions: ['mediate_fight', 'calm_situation', 'unite_group']
+    }
 ];
 
 export const ACTION_COSTS = {
@@ -45,7 +186,14 @@ export const ACTION_COSTS = {
     SOCIALIZE: 15,
     EAVESDROP: 15,
     READ: 10,
-    SPREAD_RUMOR: 30
+    SPREAD_RUMOR: 30,
+    PARTY_DRINK: 10 // [NEW]
+};
+
+export const EVENT_CHANCES = {
+    BIG_PHONE: 0.05,
+    RANDOM_EVENT: 0.40, // 40% per action
+    STRATEGY_LEAK: 0.40 // 40% during party
 };
 
 export const GAME_STATES = {

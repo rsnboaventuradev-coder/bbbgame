@@ -129,6 +129,10 @@ const GameContent = () => {
       )}
       {/* Tutorial Modal */}
       {showTutorial && <TutorialModal onClose={closeTutorial} />}
+      {showLeaderPanel && <LeaderPanel onClose={() => setShowLeaderPanel(false)} />} {/* [NEW] */}
+
+      {/* Critical Overlays */}
+      <BigPhoneModal />
     </GameLayout>
   );
 };
