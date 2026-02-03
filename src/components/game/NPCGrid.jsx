@@ -94,7 +94,7 @@ const NPCCard = memo(({ npc, isSelected, isLeader, isAngel, isRomance, nomineeDa
                 <div className="w-full h-1.5 bg-gray-900 rounded-full overflow-hidden mt-1">
                     <div
                         className={`h-full transition-all duration-500 ${npc.affinity > 75 ? 'bg-pink-500' :
-                                npc.affinity > 40 ? 'bg-blue-500' : 'bg-red-500'
+                            npc.affinity > 40 ? 'bg-blue-500' : 'bg-red-500'
                             }`}
                         style={{ width: `${npc.affinity}%` }}
                     />
@@ -105,11 +105,13 @@ const NPCCard = memo(({ npc, isSelected, isLeader, isAngel, isRomance, nomineeDa
 });
 
 const NPCGrid = ({ onSelect, selectedId }) => {
-    const { npcs, player, leaderId, angelId, nominees } = useGame(); // Get nominees
+    const { npcs, player, leaderId, angelId, nominees, setActiveDialogue } = useGame(); // Get nominees
 
     const handleSelect = useCallback((id) => {
         onSelect(id);
-    }, [onSelect]);
+        const target = npcs.find(n => n.id === id);
+        if (target) setActiveDialogue(target);
+    }, [onSelect, npcs, setActiveDialogue]);
 
     return (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 p-4 pb-24 overflow-y-auto max-h-[70vh] custom-scrollbar">

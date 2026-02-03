@@ -1,220 +1,154 @@
 import React, { useState } from 'react';
-import { MessageCircle, ThumbsUp, ThumbsDown, UserMinus, ShieldAlert, Heart } from 'lucide-react';
+import { MessageCircle, Heart, Zap, Shield, ArrowLeft, X, Trophy, Smile, Frown } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 import { ACTION_COSTS } from '../../utils/constants';
 
 const InteractionModal = () => {
-    const { activeDialogue, setActiveDialogue, updateAffinity, addLog, player, setPlayer, addInteraction, npcs, executeRomanceAction, actionsLeft, setActionsLeft } = useGame();
-    const [step, setStep] = useState('opening'); // opening, gossip, result
-    const [gossipTarget, setGossipTarget] = useState(null);
+    const { activeDialogue, setActiveDialogue, executeAction, player } = useGame();
+    const [category, setCategory] = useState(null); // null = main menu
 
     if (!activeDialogue) return null;
 
     const close = () => {
         setActiveDialogue(null);
-        setStep('opening');
-        setGossipTarget(null);
+        setCategory(null);
     };
 
-    // --- Logic ---
-    const memory = activeDialogue.memory || [];
-    const lastInteraction = memory.length > 0 ? memory[0] : null;
+    const categories = [
+        { id: 'social', label: 'Amigável', icon: Smile, color: 'text-green-400', bg: 'bg-green-900/30', border: 'border-green-500/50', desc: 'Conversar, Elogiar, Piadas' },
+        { id: 'hostile', label: 'Hostil', icon: Zap, color: 'text-red-400', bg: 'bg-red-900/30', border: 'border-red-500/50', desc: 'Discutir, Provocar, Expor' },
+        { id: 'romance', label: 'Romântico', icon: Heart, color: 'text-pink-400', bg: 'bg-pink-900/30', border: 'border-pink-500/50', desc: 'Flerte, Xaveco, Beijo' },
+        { id: 'strat', label: 'Estratégia', icon: Trophy, color: 'text-blue-400', bg: 'bg-blue-900/30', border: 'border-blue-500/50', desc: 'Alianças, Mentiras, Votos' }
+    ];
 
-    // Check Refusal
-    const isRefusing = lastInteraction === 'conflict' || activeDialogue.affinity < 10;
-
-    const handleNiceString = () => {
-        const msgs = [
-            "Você é demais!",
-            "Tamo junto nessa!",
-            "Adoro seu jogo.",
-            "Conte comigo."
-        ];
-        return msgs[Math.floor(Math.random() * msgs.length)];
+    const actions = {
+        social: [
+            { key: 'social_chat', label: 'Jogar papo fora', desc: 'Afinidade leve, baixo custo', cost: 10 },
+            { key: 'social_compliment', label: 'Elogiar', desc: 'Garante aumento de afinidade', cost: 10 },
+            { key: 'social_joke', label: 'Contar Piada', desc: 'Alivia estresse de ambos', cost: 10 }
+        ],
+        hostile: [
+            { key: 'hostile_argue', label: 'Discutir Relação', desc: 'Cria rivalidade moderada', cost: 15 },
+            { key: 'hostile_insult', label: 'Ofender', desc: 'Dano massivo na afinidade', cost: 15 },
+            { key: 'hostile_expose', label: 'Expor Jogo', desc: 'Gera drama na casa', cost: 15 }
+        ],
+        romance: [
+            { key: 'romance_flirt', label: 'Flerter', desc: 'Sondar interesse', cost: 10 },
+            { key: 'romance_pickup', label: 'Mandar Xaveco', desc: 'Mais direto', cost: 10 },
+            { key: 'romance_kiss', label: 'Beijar', desc: 'Requer alta afinidade', cost: 15 }
+        ],
+        strat: [
+            { key: 'strat_probe', label: 'Sondar Voto', desc: 'Descobre intenção de voto', cost: 15 },
+            { key: 'strat_alliance', label: 'Propor Aliança', desc: 'Tenta firmar parceria', cost: 15 },
+            { key: 'strat_lie', label: 'Mentir', desc: 'Manipula a percepção', cost: 15 }
+        ]
     };
 
-    const handleTalk = (type) => {
-        // Validation: Energy & Actions
-        const cost = ACTION_COSTS.SOCIALIZE;
-        if (player.energy < cost) {
-            addLog("Você está muito cansado para conversar...", "alert");
-            return;
-        }
-        if (actionsLeft <= 0) {
-            addLog("O dia acabou! Você precisa dormir.", 'alert');
-            return;
-        }
-
-        // Deduct Resources
-        setPlayer(prev => ({ ...prev, energy: Math.max(0, prev.energy - cost) }));
-        setActionsLeft(prev => prev - 1); // Deduct Action Point
-
-        if (type === 'nice') {
-            updateAffinity(activeDialogue.id, 5);
-            addLog(`Você elogiou ${activeDialogue.name}.`);
-            addInteraction(activeDialogue.id, 'socialize');
-            close();
-        } else if (type === 'gossip') {
-            // Check if they want to share
-            if (activeDialogue.affinity > 50) {
-                // Find a target to gossip about
-                const targets = npcs.filter(n => n.id !== activeDialogue.id && n.status === 'active' && n.id !== 'player');
-                if (targets.length > 0) {
-                    const randomTarget = targets[Math.floor(Math.random() * targets.length)];
-                    setGossipTarget(randomTarget);
-                    setStep('gossip');
-                } else {
-                    addLog(`${activeDialogue.name} não tem novidades.`);
-                    close();
-                }
-            } else {
-                addLog(`${activeDialogue.name} desconversou (afinidade baixa).`, 'alert');
-                close();
-            }
-        }
+    const handleAction = (key) => {
+        executeAction(key, activeDialogue.id);
+        // Modal closes automatically inside executeAction if successful? 
+        // No, current implementation of executeAction sets ActiveDialogue(null) on success.
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]">
 
                 {/* Header */}
-                <div className="bg-gray-800 p-4 border-b border-gray-700 flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-xl font-bold border-2 border-blue-500">
-                        {activeDialogue.name[0]}
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold text-white">{activeDialogue.name}</h2>
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                            <span className={`px-2 py-0.5 rounded ${activeDialogue.affinity > 50 ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
-                                Afinidade: {activeDialogue.affinity}%
-                            </span>
-                            <span>{activeDialogue.job}</span>
+                <div className="bg-gray-800/80 p-4 border-b border-gray-700 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3">
+                        {category ? (
+                            <button onClick={() => setCategory(null)} className="p-1 hover:bg-gray-700 rounded-full transition-colors">
+                                <ArrowLeft size={20} className="text-gray-300" />
+                            </button>
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white border-2 border-indigo-400">
+                                {activeDialogue.name[0]}
+                            </div>
+                        )}
+                        <div>
+                            <h2 className="text-lg font-bold text-white leading-tight">{activeDialogue.name}</h2>
+                            <p className="text-xs text-indigo-300">{activeDialogue.job}</p>
                         </div>
                     </div>
-                    <button onClick={close} className="ml-auto text-gray-500 hover:text-white">✕</button>
+                    <button onClick={close} className="p-1 hover:bg-red-500/20 rounded-full group transition-colors">
+                        <X size={24} className="text-gray-500 group-hover:text-red-400" />
+                    </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-6">
-                    {step === 'opening' && (
-                        <>
-                            {isRefusing ? (
-                                <div className="text-center space-y-4">
-                                    <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-2" />
-                                    <p className="text-gray-300 italic">"Não tô muito a fim de papo com você agora..."</p>
-                                    <p className="text-xs text-red-400 uppercase tracking-widest">(Recusou conversar)</p>
-                                    <button onClick={close} className="w-full bg-red-600/20 hover:bg-red-600/40 text-red-200 py-2 rounded-lg mt-4">
-                                        Ok, sair.
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="space-y-6">
-                                    {/* NPC Dialogue */}
-                                    <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700 relative">
-                                        <div className="absolute -top-2 left-4 w-4 h-4 bg-gray-800 border-t border-l border-gray-700 transform rotate-45"></div>
-                                        <p className="text-gray-200">
-                                            {lastInteraction === 'romance' ? "Oi chuchuzinho! 😍" :
-                                                lastInteraction === 'socialize' ? "E aí, o que manda?" :
-                                                    "Olá! Tudo certo?"}
-                                        </p>
+                <div className="p-4 overflow-y-auto custom-scrollbar flex-1">
+
+                    {/* Afinidade Bar */}
+                    <div className="mb-6 px-2">
+                        <div className="flex justify-between text-xs text-gray-400 mb-1 uppercase font-bold tracking-wider">
+                            <span>Afinidade</span>
+                            <span>{Math.round(activeDialogue.affinity || 50)}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full transition-all duration-500 ${(activeDialogue.affinity || 50) > 60 ? 'bg-green-500' :
+                                        (activeDialogue.affinity || 50) < 30 ? 'bg-red-500' : 'bg-yellow-500'
+                                    }`}
+                                style={{ width: `${activeDialogue.affinity || 50}%` }}
+                            />
+                        </div>
+                    </div>
+
+                    {!category ? (
+                        <div className="grid grid-cols-2 gap-3">
+                            {categories.map(cat => (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setCategory(cat.id)}
+                                    className={`
+                                        flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-200
+                                        ${cat.bg} ${cat.border} hover:scale-[1.02] active:scale-95
+                                        group h-32
+                                    `}
+                                >
+                                    <div className={`p-3 rounded-full bg-black/20 mb-2 group-hover:bg-black/40 transition-colors ${cat.color}`}>
+                                        <cat.icon size={28} />
                                     </div>
-
-                                    {/* Options */}
-                                    <div className="grid grid-cols-1 gap-3">
-                                        <button
-                                            onClick={() => handleTalk('nice')}
-                                            className="flex items-center gap-3 p-3 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 transition-all text-left group"
-                                        >
-                                            <div className="p-2 bg-blue-500/20 rounded-full group-hover:bg-blue-500 group-hover:text-white text-blue-400">
-                                                <ThumbsUp size={18} />
-                                            </div>
-                                            <div>
-                                                <span className="block font-bold text-blue-100">Jogar conversa fora</span>
-                                                <span className="text-xs text-blue-300/60">Aumenta afinidade levemente.</span>
-                                            </div>
-                                        </button>
-
-                                        <button
-                                            onClick={() => handleTalk('gossip')}
-                                            className="flex items-center gap-3 p-3 rounded-xl bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 transition-all text-left group"
-                                        >
-                                            <div className="p-2 bg-purple-500/20 rounded-full group-hover:bg-purple-500 group-hover:text-white text-purple-400">
-                                                <MessageCircle size={18} />
-                                            </div>
-                                            <div>
-                                                <span className="block font-bold text-purple-100">Fofocar</span>
-                                                <span className="text-xs text-purple-300/60">Tenta descobrir um segredo.</span>
-                                            </div>
-                                        </button>
-
-                                        <button
-                                            onClick={close}
-                                            className="text-center text-gray-500 hover:text-white text-sm mt-2"
-                                        >
-                                            Deixa pra lá (Sair)
-                                        </button>
+                                    <span className={`font-bold uppercase tracking-wider text-sm ${cat.color}`}>
+                                        {cat.label}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="space-y-2 animate-slideInRight">
+                            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 pl-1">
+                                Interações — {categories.find(c => c.id === category)?.label}
+                            </h3>
+                            {actions[category].map(act => (
+                                <button
+                                    key={act.key}
+                                    onClick={() => handleAction(act.key)}
+                                    disabled={player.energy < act.cost}
+                                    className={`
+                                        w-full p-3 rounded-xl border border-gray-700 bg-gray-800/50 hover:bg-gray-700/80 
+                                        transition-all text-left flex items-center justify-between group
+                                        disabled:opacity-50 disabled:cursor-not-allowed
+                                    `}
+                                >
+                                    <div>
+                                        <span className="block font-bold text-gray-200 group-hover:text-white transition-colors">
+                                            {act.label}
+                                        </span>
+                                        <span className="text-xs text-gray-500 group-hover:text-gray-400">
+                                            {act.desc}
+                                        </span>
                                     </div>
-
-                                    {/* Romance Section */}
-                                    <div className="border-t border-gray-700 pt-4 mt-2">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h4 className="text-pink-400 font-bold text-sm uppercase flex items-center gap-1">
-                                                <Heart size={14} /> Romance
-                                            </h4>
-                                            {/* Chemistry Badge */}
-                                            {activeDialogue.relationships?.player?.chemistry && (
-                                                <span className="text-xs bg-pink-900/50 text-pink-200 px-2 py-1 rounded border border-pink-500/30">
-                                                    Química: {Math.round(activeDialogue.relationships.player.chemistry)}%
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <button
-                                                onClick={() => { executeRomanceAction(activeDialogue.id, 'FLIRT'); close(); }}
-                                                className="bg-pink-600/20 hover:bg-pink-600/40 border border-pink-500/30 text-pink-200 p-2 rounded-lg text-xs font-bold transition-colors"
-                                            >
-                                                Flerter (10E)
-                                            </button>
-                                            <button
-                                                onClick={() => { executeRomanceAction(activeDialogue.id, 'KISS'); close(); }}
-                                                className="bg-pink-600/30 hover:bg-pink-600/50 border border-pink-500/50 text-white p-2 rounded-lg text-xs font-bold transition-colors"
-                                            >
-                                                Beijar (15E)
-                                            </button>
-                                            <button
-                                                onClick={() => { executeRomanceAction(activeDialogue.id, 'EDREDOM'); close(); }}
-                                                className="bg-red-600/40 hover:bg-red-600/60 border border-red-500/50 text-white p-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"
-                                            >
-                                                🔥 Edredom (40E)
-                                            </button>
-                                        </div>
+                                    <div className="text-xs font-mono text-yellow-500/80 bg-black/30 px-2 py-1 rounded border border-yellow-900/30">
+                                        -{act.cost} E
                                     </div>
-                                </div>
+                                </button>
+                            ))}
+
+                            {actions[category].length === 0 && (
+                                <p className="text-center text-gray-500 text-sm py-4">Nenhuma ação disponível.</p>
                             )}
-                        </>
-                    )}
-
-                    {step === 'gossip' && gossipTarget && (
-                        <div className="text-center space-y-4 animate-fade-in">
-                            <div className="w-16 h-16 rounded-full bg-purple-900/50 mx-auto flex items-center justify-center border border-purple-500 mb-2">
-                                <span className="text-2xl">🤫</span>
-                            </div>
-                            <h3 className="text-lg font-bold text-purple-300">Segredo Revelado!</h3>
-                            <p className="text-gray-300">
-                                {activeDialogue.name} sussurrou:
-                            </p>
-                            <div className="bg-black/40 p-4 rounded-lg border border-purple-500/30 italic text-purple-100">
-                                "Não conta pra ninguém, mas eu acho que o(a) <strong className="text-white">{gossipTarget.name}</strong> está jogando
-                                muito errado. Vi ele(a) conversando sozinho(a) sobre a votação."
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">
-                                (Afinidade com {activeDialogue.name} aumentou por compartilhar segredo)
-                            </p>
-                            <button onClick={() => { updateAffinity(activeDialogue.id, 10); close(); }} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-lg shadow-lg mt-4">
-                                Uau! (Fechar)
-                            </button>
                         </div>
                     )}
                 </div>

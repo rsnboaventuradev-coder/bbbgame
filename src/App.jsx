@@ -16,6 +16,7 @@ import VotingConfessional from './components/game/VotingConfessional';
 import LeaderNominationPanel from './components/game/LeaderNominationPanel'; // [NEW]
 import EliminationScreen from './components/game/EliminationScreen';
 import BigPhoneModal from './components/game/BigPhoneModal'; // [NEW]
+import RelationshipGrid from './components/game/RelationshipGrid'; // [NEW]
 import LeaderPanel from './components/game/LeaderPanel'; // [NEW]
 import { GAME_STATES } from './utils/constants';
 
@@ -133,6 +134,7 @@ const GameContent = () => {
       {showLeaderPanel && <LeaderPanel onClose={() => setShowLeaderPanel(false)} />} {/* [NEW] */}
 
       {/* Critical Overlays */}
+      <RelationshipGrid />
       <BigPhoneModal />
     </GameLayout>
   );

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useGame } from '../../context/GameContext';
-import { Heart, Battery, Activity, Sparkles, Shield, Crown, Brain, Trophy, Smile, ShoppingCart, Droplets, Utensils, Handshake, Save } from 'lucide-react';
+import { Heart, Battery, Activity, Sparkles, Shield, Crown, Brain, Trophy, Smile, ShoppingCart, Droplets, Utensils, Handshake, Save, Bone } from 'lucide-react';
 import ShopModal from '../game/ShopModal';
 import AllianceModal from '../game/AllianceModal';
 
 const Sidebar = () => {
-    const { player, houseCleanliness, saveGame } = useGame();
+    const { player, houseCleanliness, saveGame, activeMoodlets } = useGame();
     const [isShopOpen, setIsShopOpen] = useState(false);
     const [isAllianceOpen, setIsAllianceOpen] = useState(false);
 
@@ -46,7 +46,19 @@ const Sidebar = () => {
                         )}
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-white leading-tight">{player.name}</h2>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-xl font-bold text-white leading-tight">{player.name}</h2>
+                            {player.group === 'vip' && (
+                                <div className="bg-yellow-500 text-black p-1 rounded shadow-lg animate-pulse" title="VIP👑">
+                                    <Crown size={14} fill="currentColor" />
+                                </div>
+                            )}
+                            {player.group === 'xepa' && (
+                                <div className="bg-stone-800 text-stone-400 p-1 rounded border border-stone-700" title="Xepa 🦴">
+                                    <Bone size={14} />
+                                </div>
+                            )}
+                        </div>
                         <p className="text-xs text-purple-400 font-medium uppercase tracking-wide">{player.job}</p>
                         <div className="flex items-center gap-1 mt-1 text-green-400 font-bold text-sm">
                             <span className="text-xs text-gray-500">C$</span> {player.estalecas || 0}
@@ -87,6 +99,25 @@ const Sidebar = () => {
                         colorClass={player.hygiene < 30 ? 'text-red-500' : 'text-cyan-400'}
                     />
                 </div>
+
+                {/* [NEW] Moodlets */}
+                {activeMoodlets && activeMoodlets.length > 0 && (
+                    <div className="bg-gray-800/50 p-3 rounded-xl border border-gray-700/50 backdrop-blur-sm flex flex-wrap gap-2 animate-fadeIn">
+                        {activeMoodlets.map(m => (
+                            <div key={m.id} className="relative group cursor-help transition-transform hover:scale-110">
+                                <span className="text-2xl filter drop-shadow-md select-none">
+                                    {m.icon}
+                                </span>
+                                {/* Tooltip */}
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-32 bg-gray-900/95 text-white text-[10px] p-2 rounded border border-gray-600 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center shadow-xl">
+                                    <strong className="block text-yellow-400 mb-0.5">{m.name}</strong>
+                                    <span className="text-gray-300 leading-tight block">{m.effect}</span>
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900/95"></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 {/* Status Extra */}
                 {player.romanceId && (

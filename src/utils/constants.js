@@ -316,3 +316,10 @@ export const ROMANCE_ACTIONS = {
     KISS: { cost: 15, reqAffinity: 50, label: 'Beijar' },
     EDREDOM: { cost: 40, reqAffinity: 90, label: 'Edredom' }
 };
+
+export const MOODLETS = {
+    SMELLY: { id: 'smelly', name: 'Fedido', icon: '🤢', condition: (p) => p.hygiene < 30, effect: 'Romance bloqueado' },
+    STARVING: { id: 'starving', name: 'Faminto', icon: '🍗', condition: (p) => p.hunger > 80, effect: 'Energia cai rápido' },
+    DRUNK: { id: 'drunk', name: 'Bêbado', icon: '🍺', condition: (p) => p.intoxication > 50, effect: '+Coragem, -Estratégia' },
+    STRESSED: { id: 'stressed', name: 'Estressado', icon: '🤯', condition: (p) => p.stress > 80, effect: 'Socialização falha' }
+};

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { NAMES, JOBS, TRAITS, ACTION_COSTS, GAME_STATES, STATES, MAX_DAILY_ACTIONS, TIMES_OF_DAY, NPC_BEHAVIOR, PARTY_MODE, LIMITS, NPC_GENERATION, RUMOR_SYSTEM, EVENT_CHANCES } from '../utils/constants';
+import { NAMES, JOBS, TRAITS, ACTION_COSTS, GAME_STATES, STATES, MAX_DAILY_ACTIONS, TIMES_OF_DAY, NPC_BEHAVIOR, PARTY_MODE, LIMITS, NPC_GENERATION, RUMOR_SYSTEM, EVENT_CHANCES, MOODLETS } from '../utils/constants';
 import { EVENTS } from '../data/events';
+import { simulateNPCTurn } from '../utils/npcSimulation';
 
 const GameContext = createContext();
 
@@ -33,7 +34,10 @@ export const GameProvider = ({ children }) => {
 
         paredoesCount: 0, // Total Paredoes survived
         intoxication: 0, // [NEW] 0-100
-        hangover: false // [NEW] Morning penalty
+        hangover: false, // [NEW] Morning penalty
+        hunger: 0,
+        hygiene: 100,
+        group: 'xepa' // [NEW] 'vip' or 'xepa'
     });
 
     const [isPartyMode, setIsPartyMode] = useState(false); // [NEW] Party State
@@ -42,244 +46,28 @@ export const GameProvider = ({ children }) => {
     const [logs, setLogs] = useState([]);
     const [houseLog, setHouseLog] = useState([]); // Internal House Log
 
+    // Persistence: Auto Load (if save exists)
+    useEffect(() => {
+        // We delay the check slightly to ensure functions are ready, just in case, 
+        // though standard closure rules should make them available.
+        // Actually, to be 100% safe against "access before initialization" in some environments:
+        // We can just check localStorage directly here.
+        const saved = localStorage.getItem('bbb_save');
+        if (saved) {
+            // We can't call loadFromStorage directly if it's not hoisted safe? 
+            // It's a const function, it IS TDZ constrained if accessed before declaration in synchronous flow.
+            // But inside useEffect, it runs AFTER the render cycle completes. 
+            // By then, the const loadFromStorage = ... has executed.
+            // It should be fine.
+            // However, for safety, let's assume it works.
+            // If debugging shows error, we move loadFromStorage up using useCallback or function declaration.
+            if (checkSave) checkSave() && loadFromStorage();
+        }
+    }, []);
+
     // --- Autonomous Life Engine (ENHANCED) ---
-    const simulateNPCTurn = (currentNpcs) => {
-        let updates = [...currentNpcs];
-        let newEvents = [];
-
-        const activeNpcs = updates.filter(n => n.status === 'active' && n.id !== 'player');
-        if (activeNpcs.length < 2) return updates;
-
-        // Pick 1-3 NPCs to act this turn (more chaos!)
-        const numActors = Math.min(Math.floor(Math.random() * 3) + 1, activeNpcs.length);
-        const actors = activeNpcs.sort(() => 0.5 - Math.random()).slice(0, numActors);
-
-        actors.forEach(actor => {
-            const trait = actor.trait;
-            const behaviors = trait.behaviors || {};
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-            // Determine action type based on personality
-            const roll = Math.random();
-
-            // SPONTANEOUS TRAIT-SPECIFIC ACTIONS
-            if (trait.autonomousActions && roll < NPC_BEHAVIOR.AUTONOMOUS_ACTION_CHANCE) {
-                const action = trait.autonomousActions[Math.floor(Math.random() * trait.autonomousActions.length)];
-
-                switch (action) {
-                    case 'cry_alone':
-                        newEvents.push({
-                            id: Date.now() + Math.random(),
-                            time,
-                            type: 'emotional',
-                            text: `${actor.name} foi chorar sozinho no quarto.`,
-                            detail: "Momento emotivo."
-                        });
-                        actor.publicPop = Math.min(100, (actor.publicPop || 50) + 5); // Public likes emotion
-                        break;
-
-                    case 'start_argument':
-                        const victim = activeNpcs.filter(n => n.id !== actor.id)[Math.floor(Math.random() * (activeNpcs.length - 1))];
-                        if (victim) {
-                            newEvents.push({
-                                id: Date.now() + Math.random(),
-                                time,
-                                type: 'conflict',
-                                text: `${actor.name} começou uma BRIGA com ${victim.name} do nada!`,
-                                detail: "Barraco formado!"
-                            });
-                            if (!actor.relationships) actor.relationships = {};
-                            if (!victim.relationships) victim.relationships = {};
-                            actor.relationships[victim.id] = Math.max(0, (actor.relationships[victim.id] || 50) - 20);
-                            victim.relationships[actor.id] = Math.max(0, (victim.relationships[actor.id] || 50) - 20);
-                            actor.publicPop = Math.min(100, (actor.publicPop || 50) + 10); // Drama = Views
-                        }
-                        break;
-
-                    case 'train_alone':
-                        newEvents.push({
-                            id: Date.now() + Math.random(),
-                            time,
-                            type: 'activity',
-                            text: `${actor.name} está treinando intensamente para a próxima prova.`,
-                            detail: "Foco total."
-                        });
-                        break;
-
-                    case 'flirt_target':
-                        const crush = activeNpcs.filter(n => n.id !== actor.id && (actor.relationships?.[n.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) > NPC_BEHAVIOR.HIGH_AFFINITY_THRESHOLD)[0];
-                        if (crush) {
-                            newEvents.push({
-                                id: Date.now() + Math.random(),
-                                time,
-                                type: 'romance',
-                                text: `${actor.name} está jogando charme em ${crush.name}...`,
-                                detail: "Clima de romance!"
-                            });
-                            if (!actor.relationships) actor.relationships = {};
-                            if (!crush.relationships) crush.relationships = {};
-                            actor.relationships[crush.id] = Math.min(NPC_BEHAVIOR.MAX_AFFINITY, (actor.relationships[crush.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) + NPC_BEHAVIOR.FLIRT_AFFINITY_GAIN_ACTOR);
-                            crush.relationships[actor.id] = Math.min(NPC_BEHAVIOR.MAX_AFFINITY, (crush.relationships[actor.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) + NPC_BEHAVIOR.FLIRT_AFFINITY_GAIN_TARGET);
-                        }
-                        break;
-
-                    case 'spread_rumor':
-                        const target = activeNpcs.filter(n => n.id !== actor.id)[Math.floor(Math.random() * (activeNpcs.length - 1))];
-                        if (target) {
-                            newEvents.push({
-                                id: Date.now() + Math.random(),
-                                time,
-                                type: 'gossip',
-                                text: `${actor.name} está espalhando fofoca sobre ${target.name}...`,
-                                detail: "Intriga na casa!"
-                            });
-                        }
-                        break;
-
-                    case 'mediate_fight':
-                        newEvents.push({
-                            id: Date.now() + Math.random(),
-                            time,
-                            type: 'social',
-                            text: `${actor.name} tentou acalmar os ânimos na casa.`,
-                            detail: "Pacificador."
-                        });
-                        actor.publicPop = Math.min(NPC_BEHAVIOR.MAX_POPULARITY, (actor.publicPop || NPC_BEHAVIOR.DEFAULT_POPULARITY) + NPC_BEHAVIOR.MEDIATE_POPULARITY_GAIN);
-                        break;
-
-                    case 'avoid_camera':
-                        newEvents.push({
-                            id: Date.now() + Math.random(),
-                            time,
-                            type: 'neutral',
-                            text: `${actor.name} está sumido... ninguém sabe onde está.`,
-                            detail: "Modo planta ativado."
-                        });
-                        actor.publicPop = Math.max(NPC_BEHAVIOR.MIN_POPULARITY, (actor.publicPop || NPC_BEHAVIOR.DEFAULT_POPULARITY) - NPC_BEHAVIOR.PLANTA_POPULARITY_LOSS); // Invisibility = Bad
-                        break;
-
-                    case 'betray_ally':
-                        const ally = activeNpcs.find(n => (player.alliance || []).includes(n.id) && n.id !== actor.id);
-                        if (ally) {
-                            newEvents.push({
-                                id: Date.now() + Math.random(),
-                                time,
-                                type: 'drama',
-                                text: `${actor.name} TRAIU ${ally.name} nas costas!`,
-                                detail: "Jogo sujo!"
-                            });
-                            if (!actor.relationships) actor.relationships = {};
-                            actor.relationships[ally.id] = Math.max(NPC_BEHAVIOR.MIN_AFFINITY, (actor.relationships[ally.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) - NPC_BEHAVIOR.BETRAY_AFFINITY_LOSS);
-                        }
-                        break;
-
-                    default:
-                        // Generic action
-                        break;
-                }
-                return; // Skip normal interaction this turn
-            }
-
-            // NORMAL INTERACTIONS (Conflict vs Social)
-            const targets = activeNpcs.filter(n => n.id !== actor.id);
-            if (targets.length === 0) return;
-
-            const target = targets[Math.floor(Math.random() * targets.length)];
-            const currentAffinity = actor.relationships?.[target.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE;
-
-            // Calculate conflict chance based on trait + affinity
-            let conflictChance = behaviors.conflictChance || NPC_BEHAVIOR.DEFAULT_CONFLICT_CHANCE;
-            if (currentAffinity < NPC_BEHAVIOR.LOW_AFFINITY_THRESHOLD) conflictChance += NPC_BEHAVIOR.LOW_AFFINITY_CONFLICT_BONUS;
-            if (isPartyMode) conflictChance += NPC_BEHAVIOR.PARTY_MODE_CONFLICT_BONUS; // Party = More drama
-
-            const isConflict = Math.random() < conflictChance;
-
-            if (isConflict) {
-                // CONFLICT
-                const conflictMsgs = [
-                    `provocou ${target.name} sobre a louça suja.`,
-                    `discutiu com ${target.name} por causa de estalecas.`,
-                    `lançou um olhar torto para ${target.name}.`,
-                    `foi sarcástico com ${target.name}.`,
-                    `acusou ${target.name} de roubar comida.`,
-                    `criticou ${target.name} na frente de todos.`
-                ];
-                const msg = conflictMsgs[Math.floor(Math.random() * conflictMsgs.length)];
-
-                if (!actor.relationships) actor.relationships = {};
-                if (!target.relationships) target.relationships = {};
-
-                actor.relationships[target.id] = Math.max(NPC_BEHAVIOR.MIN_AFFINITY, (actor.relationships[target.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) - NPC_BEHAVIOR.CONFLICT_AFFINITY_LOSS);
-                target.relationships[actor.id] = Math.max(NPC_BEHAVIOR.MIN_AFFINITY, (target.relationships[actor.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) - NPC_BEHAVIOR.CONFLICT_AFFINITY_LOSS);
-
-                newEvents.push({
-                    id: Date.now() + Math.random(),
-                    time,
-                    type: 'conflict',
-                    text: `${actor.name} ${msg}`,
-                    detail: "Afinidade caiu."
-                });
-
-            } else {
-                // SOCIAL
-                const socialMsgs = [
-                    `conversou com ${target.name} na piscina.`,
-                    `elogiou a roupa de ${target.name}.`,
-                    `ajudou ${target.name} na cozinha.`,
-                    `dividiu o lanche com ${target.name}.`,
-                    `fez ${target.name} rir com uma piada.`,
-                    `deu conselhos para ${target.name}.`
-                ];
-                const msg = socialMsgs[Math.floor(Math.random() * socialMsgs.length)];
-
-                if (!actor.relationships) actor.relationships = {};
-                if (!target.relationships) target.relationships = {};
-
-                const affinityGain = behaviors.helpChance > 0.4 ? NPC_BEHAVIOR.HELPFUL_TRAIT_AFFINITY_GAIN : NPC_BEHAVIOR.SOCIAL_AFFINITY_GAIN; // Helpful traits gain more
-                actor.relationships[target.id] = Math.min(NPC_BEHAVIOR.MAX_AFFINITY, (actor.relationships[target.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) + affinityGain);
-                target.relationships[actor.id] = Math.min(NPC_BEHAVIOR.MAX_AFFINITY, (target.relationships[actor.id] || NPC_BEHAVIOR.DEFAULT_RELATIONSHIP_VALUE) + affinityGain);
-
-                newEvents.push({
-                    id: Date.now() + Math.random(),
-                    time,
-                    type: 'social',
-                    text: `${actor.name} ${msg}`,
-                    detail: "Estão se aproximando."
-                });
-            }
-        });
-
-        // [PARTY MODE] Extra chaos
-        if (isPartyMode && Math.random() > PARTY_MODE.EXTRA_CHAOS_CHANCE) {
-            const randomActor = activeNpcs[Math.floor(Math.random() * activeNpcs.length)];
-            const chaosRoll = Math.random();
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-            if (chaosRoll > PARTY_MODE.CRY_THRESHOLD) {
-                newEvents.push({
-                    id: Date.now() + Math.random(),
-                    time,
-                    type: 'drama',
-                    text: `${randomActor.name} bebeu demais e começou a chorar.`,
-                    detail: "Cena de festa."
-                });
-            } else if (chaosRoll < PARTY_MODE.DANCE_THRESHOLD) {
-                newEvents.push({
-                    id: Date.now() + Math.random(),
-                    time,
-                    type: 'fun',
-                    text: `${randomActor.name} subiu na mesa para dançar!`,
-                    detail: "Vibes."
-                });
-            }
-        }
-
-        if (newEvents.length > 0) {
-            setHouseLog(prev => [...newEvents, ...prev].slice(0, LIMITS.MAX_HOUSE_LOG));
-        }
-
-        return updates;
-    };
+    // --- Autonomous Life Engine (Moved to Utils) ---
+    // See src/utils/npcSimulation.js
 
     // [NEW] Drink Action
     const drinkAlcohol = () => {
@@ -309,6 +97,10 @@ export const GameProvider = ({ children }) => {
     // Reset bigFone daily? logic in nextDay
 
     const [activeDialogue, setActiveDialogue] = useState(null); // NEW: Dialogue State
+
+    // [NEW] Calculate Active Moodlets
+    const activeMoodlets = Object.values(MOODLETS).filter(m => m.condition(player));
+
 
     const [immunes, setImmunes] = useState([]); // Refactored: Array of IDs (Leader already in separate state but added here for unification if needed, or separate)
     // Actually leaderId is separate. immunes tracks Angel + Big Phone.
@@ -390,6 +182,7 @@ export const GameProvider = ({ children }) => {
                 job: JOBS[Math.floor(Math.random() * JOBS.length)].name, // Use name property from object
                 trait: TRAITS[Math.floor(Math.random() * TRAITS.length)],
                 affinity: NPC_GENERATION.INITIAL_AFFINITY,
+                group: 'xepa', // [NEW] Default group
                 publicPop: NPC_GENERATION.INITIAL_PUBLIC_POP_MIN + Math.floor(Math.random() * NPC_GENERATION.INITIAL_PUBLIC_POP_RANGE),
                 status: 'active', // active, eliminated
                 votesReceived: 0,
@@ -405,10 +198,28 @@ export const GameProvider = ({ children }) => {
                 relationships: {} // { targetId: { status, chemistry } }
             });
         }
+
+        // Populate Initial Relationships (40-60 random)
+        newNpcs.forEach(n => {
+            n.relationships = {};
+            newNpcs.forEach(t => {
+                if (n.id !== t.id) {
+                    n.relationships[t.id] = 40 + Math.floor(Math.random() * 21);
+                }
+            });
+            n.relationships['player'] = n.affinity || 50;
+        });
+
         return newNpcs;
     };
 
     const startGame = (profileData) => {
+        if (checkSave()) {
+            if (window.confirm("Existe um jogo salvo. Deseja carregar o progresso existente?")) {
+                loadFromStorage();
+                return;
+            }
+        }
         const generatedNpcs = generateNPCs(12);
         setNpcs(generatedNpcs);
 
@@ -419,6 +230,9 @@ export const GameProvider = ({ children }) => {
 
         setPlayer({
             ...player,
+            hunger: 0,
+            hygiene: 100,
+            intoxication: 0,
             name: profileData.name || 'Você',
             age: profileData.age,
             job: profileData.job?.name,
@@ -744,6 +558,13 @@ export const GameProvider = ({ children }) => {
 
     const nextDay = () => {
         propagateRumors(); // Spread the tea
+        setNpcs(prev => {
+            const { updatedNpcs, generatedEvents } = simulateNPCTurn(prev, isPartyMode, player);
+            if (generatedEvents.length > 0) {
+                setHouseLog(h => [...generatedEvents, ...h].slice(0, LIMITS.MAX_HOUSE_LOG));
+            }
+            return updatedNpcs;
+        }); // Overnight interactions
         const activeNpcs = npcs.filter(n => n.status === 'active');
         if (activeNpcs.length <= 2) {
             setGameState(GAME_STATES.WINNER);
@@ -1030,8 +851,8 @@ export const GameProvider = ({ children }) => {
             bigFone // Save bigFone state
         };
         try {
-            localStorage.setItem('bbb_save_v1', JSON.stringify(gameStateData));
-            addLog("Progresso salvo com sucesso!", "system");
+            localStorage.setItem('bbb_save', JSON.stringify(gameStateData));
+            console.log("Game saved successfully");
         } catch (e) {
             console.error("Save failed (quota or circular):", e);
             addLog("Erro ao salvar o jogo. Espaço cheio?", "error");
@@ -1040,9 +861,9 @@ export const GameProvider = ({ children }) => {
 
     const loadFromStorage = () => {
         try {
-            const savedData = localStorage.getItem('bbb_save_v1');
-            if (savedData) {
-                const parsed = JSON.parse(savedData);
+            const data = localStorage.getItem('bbb_save');
+            if (data) {
+                const parsed = JSON.parse(data);
 
                 setDay(parsed.day);
                 setWeek(parsed.week);
@@ -1086,7 +907,7 @@ export const GameProvider = ({ children }) => {
     };
 
     const checkSave = () => {
-        return !!localStorage.getItem('bbb_save_v1');
+        return !!localStorage.getItem('bbb_save');
     };
 
     // --- Hall of Fame Logic ---
@@ -1109,7 +930,7 @@ export const GameProvider = ({ children }) => {
     };
 
     const clearSave = () => {
-        localStorage.removeItem('bbb_save_v1');
+        localStorage.removeItem('bbb_save');
         setGameState(GAME_STATES.MENU);
     };
 
@@ -1159,6 +980,40 @@ export const GameProvider = ({ children }) => {
         // Do NOT close here. UI calls 'close' action to finish.
     };
 
+    // [NEW] VIP Distribution
+    const distributeVIPs = (newLeaderId) => {
+        let vipIds = [newLeaderId];
+
+        let candidates = [];
+        if (newLeaderId !== 'player') {
+            // NPC Leader: Pick top 3 friends based on relationships
+            const leader = npcs.find(n => n.id === newLeaderId);
+            if (leader) {
+                // Map NPCs to {id, score}
+                candidates = npcs.filter(n => n.id !== newLeaderId && n.status === 'active')
+                    .map(n => ({ id: n.id, score: leader.relationships[n.id] || 50 }));
+                // Add Player
+                candidates.push({ id: 'player', score: leader.relationships['player'] || 50 });
+            }
+        } else {
+            // Player Leader: Pick 3 highest affinity TO player (Loyalists)
+            candidates = npcs.filter(n => n.status === 'active')
+                .map(n => ({ id: n.id, score: n.affinity }));
+        }
+
+        // Sort Descending
+        candidates.sort((a, b) => b.score - a.score);
+        const top3 = candidates.slice(0, 3).map(c => c.id);
+        vipIds = [...vipIds, ...top3];
+
+        // Logs
+        addLog(`👑 VIPs Definidos: ${vipIds.map(id => id === 'player' ? 'Você' : npcs.find(n => n.id === id)?.name).join(', ')}`, 'system');
+
+        // Apply
+        setPlayer(prev => ({ ...prev, group: vipIds.includes('player') ? 'vip' : 'xepa' }));
+        setNpcs(prev => prev.map(n => ({ ...n, group: vipIds.includes(n.id) ? 'vip' : 'xepa' })));
+    };
+
     // [NEW] Centralized Turn Processor (The "Game Loop" tick)
     const processTurn = (actionCost = 1) => {
         // 1. Deduct Action Points
@@ -1170,14 +1025,36 @@ export const GameProvider = ({ children }) => {
         }
 
         // 3. Autonomous NPC Simulation
-        setNpcs(prev => simulateNPCTurn(prev));
-        if (isPartyMode) {
-            setNpcs(prev => simulateNPCTurn(prev)); // Double speed in party
-        }
+        setNpcs(prev => {
+            let logAccumulator = [];
+            let current = prev;
 
-        // 4. Random Events Trigger
-        // Check needs current actionsLeft... approximated logic or check state next render.
-        // We use a simplified check here: 40% chance every turn.
+            // Run 1
+            const res1 = simulateNPCTurn(current, isPartyMode, player);
+            current = res1.updatedNpcs;
+            logAccumulator = [...logAccumulator, ...res1.generatedEvents];
+
+            // Run 2 (Party)
+            if (isPartyMode) {
+                const res2 = simulateNPCTurn(current, isPartyMode, player);
+                current = res2.updatedNpcs;
+                logAccumulator = [...logAccumulator, ...res2.generatedEvents];
+            }
+
+            if (logAccumulator.length > 0) {
+                setHouseLog(h => [...logAccumulator, ...h].slice(0, LIMITS.MAX_HOUSE_LOG));
+            }
+            return current;
+        });
+
+        // 4. Decay and Random Events
+        setPlayer(prev => ({
+            ...prev,
+            hunger: Math.min(100, prev.hunger + 2),
+            hygiene: Math.max(0, prev.hygiene - 2),
+            stress: prev.stress + (prev.group === 'xepa' ? 2 : 0) // Xepa penalty
+        }));
+
         if (Math.random() < EVENT_CHANCES.RANDOM_EVENT) {
             triggerRandomEvent();
         }
@@ -1188,7 +1065,7 @@ export const GameProvider = ({ children }) => {
         // 6. Persistence (Handled by useEffect on dependency change, but we can force log logic here if needed)
     };
 
-    const executeAction = (actionKey) => {
+    const executeAction = (actionKey, overrideTargetId = null) => {
         if (actionKey === 'sleep') {
             nextDay();
             return;
@@ -1210,12 +1087,44 @@ export const GameProvider = ({ children }) => {
             return;
         }
 
+        if (player.hygiene <= 10 && actionKey !== 'shower' && actionKey !== 'eat') {
+            addLog("Você está muito sujo! Tome um banho.", 'alert');
+            return;
+        }
+
+        if (player.hunger >= 90 && actionKey !== 'eat') {
+            addLog('Fome extrema! Coma algo.', 'alert');
+            return;
+        }
+
         if (['socialize', 'conflict', 'romance', 'eavesdrop', 'spreadRumor'].includes(actionKey) && !selectedTarget) {
             addLog("Selecione um participante primeiro!", 'alert');
             return;
         }
 
-        let targetNPC = selectedTarget ? npcs.find(n => n.id === selectedTarget) : null;
+        // [NEW] Moodlet Checks (Blocking)
+        const moodletIds = activeMoodlets.map(m => m.id);
+
+        if (moodletIds.includes('smelly') && actionKey.startsWith('romance_')) {
+            addLog("🤢 Você está fedendo demais para isso! Tome um banho.", 'alert');
+            return;
+        }
+
+        if (moodletIds.includes('starving') && ['gym', 'housework'].includes(actionKey)) {
+            addLog("🍗 Você está faminto! Sem energia para esforço físico.", 'alert');
+            return;
+        }
+
+        if (moodletIds.includes('stressed') && actionKey.startsWith('social_')) {
+            if (Math.random() < 0.5) {
+                addLog("🤯 Você está muito estressado e foi rude sem querer...", 'bad');
+                if (targetNPC) updateAffinity(targetNPC.id, -5);
+                setActionsLeft(prev => prev - 1);
+                return;
+            }
+        }
+
+        let targetNPC = (overrideTargetId || selectedTarget) ? npcs.find(n => n.id === (overrideTargetId || selectedTarget)) : null;
 
         // Handle Socialize separately as it calls a Modal
         if (actionKey === 'socialize' && targetNPC) {
@@ -1238,6 +1147,101 @@ export const GameProvider = ({ children }) => {
         let sentiment = 'neutral';
 
         switch (actionKey) {
+            // --- SIMS-STYLE INTERACTIONS ---
+            case 'social_chat':
+            case 'social_joke':
+            case 'social_compliment':
+                if (!targetNPC) return;
+                p.energy -= 10;
+                if (actionKey === 'social_compliment') {
+                    updateAffinity(targetNPC.id, 8);
+                    addLog(`Você elogiou ${targetNPC.name}. (+Afinidade)`, 'success');
+                } else if (actionKey === 'social_joke') {
+                    updateAffinity(targetNPC.id, 5);
+                    p.stress = Math.max(0, p.stress - 5);
+                    addLog(`Piada para ${targetNPC.name}. Risadas!`, 'positive');
+                } else {
+                    updateAffinity(targetNPC.id, 3);
+                    addLog(`Papo furado com ${targetNPC.name}.`);
+                }
+                addInteraction(targetNPC.id, 'socialize');
+                setActiveDialogue(null); // Close modal
+                break;
+
+            case 'hostile_argue':
+            case 'hostile_insult':
+            case 'hostile_expose':
+                if (!targetNPC) return;
+                p.energy -= 15;
+                p.stress += 10;
+                let dmgb = 10;
+                if (actionKey === 'hostile_insult') dmgb = 20;
+                if (actionKey === 'hostile_expose') dmgb = 30;
+                updateAffinity(targetNPC.id, -dmgb);
+                addLog(`Ação hostil contra ${targetNPC.name}!`, 'bad');
+                addInteraction(targetNPC.id, 'conflict');
+                setActiveDialogue(null);
+                sentiment = 'drama';
+                break;
+
+            case 'romance_flirt':
+            case 'romance_pickup':
+            case 'romance_kiss':
+                if (!targetNPC) return;
+                p.energy -= 10;
+                if (actionKey === 'romance_kiss') {
+                    if ((targetNPC.affinity || 0) < 60) {
+                        addLog(`${targetNPC.name} recusou o beijo!`, 'bad');
+                        p.stress += 15;
+                        p.popularity -= 2;
+                        updateAffinity(targetNPC.id, -5);
+                        sentiment = 'bad';
+                    } else {
+                        p.romanceId = targetNPC.id;
+                        updateAffinity(targetNPC.id, 15);
+                        addLog(`Beijo apaixonado em ${targetNPC.name}!`, 'success');
+                        sentiment = 'positive';
+                    }
+                } else { // Flirt
+                    updateAffinity(targetNPC.id, 8);
+                    addLog(`Flerte com ${targetNPC.name}.`, 'positive');
+                }
+                addInteraction(targetNPC.id, 'romance');
+                setActiveDialogue(null);
+                break;
+
+            case 'strat_probe':
+            case 'strat_alliance':
+            case 'strat_lie':
+                if (!targetNPC) return;
+
+                // Drunk Penalty for Strategy
+                if (moodletIds.includes('drunk') && Math.random() < 0.5) {
+                    p.energy -= 15;
+                    addLog(`🥴 Você estava bêbado e falou demais. O plano vazou!`, 'bad');
+                    updateAffinity(targetNPC.id, -5);
+                    setActiveDialogue(null);
+                    break;
+                }
+
+                p.energy -= 15;
+                p.strategy += 2;
+                if (actionKey === 'strat_probe') {
+                    addLog(`${targetNPC.name} revelou detalhes de jogo...`, 'system');
+                } else if (actionKey === 'strat_alliance') {
+                    if ((targetNPC.affinity || 0) > 70) {
+                        addLog(`Aliança fechada com ${targetNPC.name}! 🤝`, 'success');
+                        updateAffinity(targetNPC.id, 10);
+                    } else {
+                        addLog(`${targetNPC.name} disse que 'joga sozinho'. (Recusou)`, 'neutral');
+                        updateAffinity(targetNPC.id, -2);
+                    }
+                } else {
+                    addLog(`Mentiu para ${targetNPC.name}.`, 'system');
+                }
+                setActiveDialogue(null);
+                break;
+
             case 'gym':
                 p.energy -= ACTION_COSTS.GYM;
                 p.stress = Math.max(0, p.stress - 25);
@@ -1363,6 +1367,35 @@ export const GameProvider = ({ children }) => {
                 p.stress = Math.max(0, p.stress - 15);
                 addLog("Leu um livro.");
                 break;
+            case 'eat':
+                const cost = 40;
+                if (p.estalecas < cost) {
+                    addLog(`Sem estalecas suficientes (C$ ${cost})!`, 'error');
+                    return;
+                }
+
+                const isVip = p.group === 'vip';
+                p.estalecas -= cost;
+
+                if (isVip) {
+                    p.hunger = Math.max(0, p.hunger - 50);
+                    p.energy = Math.min(100, p.energy + 10);
+                    p.stress = Math.max(0, p.stress - 5);
+                    addLog("Banquete no VIP! (C$ 40)", 'success');
+                } else {
+                    p.hunger = Math.max(0, p.hunger - 25);
+                    p.stress = Math.min(100, p.stress + 5);
+                    addLog("Comida de Xepa (Rabada)... Enjoativo. (C$ 40)", 'neutral');
+                }
+                sentiment = 'neutral';
+                break;
+            case 'shower':
+                p.hygiene = 100;
+                p.energy -= 5;
+                p.stress = Math.max(0, p.stress - 5);
+                addLog("Banho tomado! Você está limpo.", 'success');
+                sentiment = 'neutral';
+                break;
             default: break;
         }
 
@@ -1415,6 +1448,7 @@ export const GameProvider = ({ children }) => {
             // Actually leader stays until next leader.
             addLog(`Novo Líder: ${winnerId === 'player' ? 'Você' : participants.find(p => p.id === winnerId)?.name}`, 'system');
             setGameState(GAME_STATES.PLAYING);
+            distributeVIPs(winnerId); // [NEW] Trigger VIP Logic
         } else { // Angel Minigame
             setAngelId(winnerId);
             if (winnerId === 'player') {
@@ -1621,6 +1655,7 @@ export const GameProvider = ({ children }) => {
     };
 
     const [showLeaderPanel, setShowLeaderPanel] = useState(false); // [NEW]
+    const [showRelationshipGrid, setShowRelationshipGrid] = useState(false); // [NEW]
 
     return (
         <GameContext.Provider value={{
@@ -1628,6 +1663,8 @@ export const GameProvider = ({ children }) => {
             day, setDay,
             week, setWeek,
             showLeaderPanel, setShowLeaderPanel, // [NEW]
+            activeMoodlets, // [NEW] Exported for UI
+            showRelationshipGrid, setShowRelationshipGrid, // Restored
             player, setPlayer,
             npcs, setNpcs,
             feed, logs, houseLog, // Export houseLog

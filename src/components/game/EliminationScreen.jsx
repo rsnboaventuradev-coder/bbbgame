@@ -92,7 +92,7 @@ const EliminationScreen = () => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black text-white flex flex-col items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[9999] bg-black text-white flex flex-col items-center justify-center p-4 animate-fadeIn">
             {/* Atmosphere */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-black to-black"></div>
 

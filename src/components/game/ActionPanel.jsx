@@ -1,10 +1,10 @@
 import React from 'react';
 import { useGame } from '../../context/GameContext';
-import { Home, Dumbbell, BookOpen, MessageCircle, Zap, Heart, Ear, Moon, Megaphone, Wine, Crown } from 'lucide-react';
+import { Home, Dumbbell, BookOpen, MessageCircle, Zap, Heart, Ear, Moon, Megaphone, Wine, Crown, LayoutGrid } from 'lucide-react';
 import { ACTION_COSTS, MAX_DAILY_ACTIONS, TIMES_OF_DAY, NPC_BEHAVIOR } from '../../utils/constants';
 
 const ActionPanel = () => {
-    const { player, selectedTarget, executeAction, nextDay, npcs, actionsLeft, isPartyMode, drinkAlcohol, activeEvent, leaderId, setShowLeaderPanel } = useGame();
+    const { player, selectedTarget, executeAction, nextDay, npcs, actionsLeft, isPartyMode, drinkAlcohol, activeEvent, leaderId, setShowLeaderPanel, setShowRelationshipGrid } = useGame();
 
     const currentPeriodIndex = Math.max(0, MAX_DAILY_ACTIONS - actionsLeft);
     const currentPeriod = TIMES_OF_DAY[currentPeriodIndex] || 'Madrugada';
@@ -91,6 +91,18 @@ const ActionPanel = () => {
                         <span className="text-[10px] text-yellow-300">Aposentos</span>
                     </button>
                 )}
+
+                {/* Queridometro */}
+                <button
+                    onClick={() => setShowRelationshipGrid(true)}
+                    className="flex flex-col items-center justify-center p-3 rounded-xl border border-pink-500 bg-pink-900/30 hover:bg-pink-800/50 text-pink-100 transition-all active:scale-95 shadow-lg shadow-pink-900/10 col-span-1"
+                    title="Ver Relações (Queridômetro)"
+                >
+                    <div className="p-2 rounded-full mb-1 bg-pink-500/20 text-pink-400">
+                        <LayoutGrid size={20} />
+                    </div>
+                    <span className="text-[10px] md:text-xs font-bold uppercase tracking-wide">Queridômetro</span>
+                </button>
 
                 {/* Sleep / Next Day */}
                 <button
